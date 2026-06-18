@@ -135,7 +135,7 @@
 
   /* ========== APP ========== */
   #l-app { background:var(--black); flex-direction:column; }
-  .screen { display:none; flex-direction:column; height:100vh; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
+  .screen { display:none; flex-direction:column; min-height:100vh; height:auto; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
   .screen::-webkit-scrollbar { display:none; }
   .screen.active { display:flex; }
   .app-header {
@@ -175,7 +175,7 @@
   .stat-val { font-family:'Bebas Neue',sans-serif; font-size:26px; color:var(--white); letter-spacing:1px; line-height:1; }
   .stat-label { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-top:3px; font-weight:600; }
   .section-title { font-family:'Bebas Neue',sans-serif; font-size:17px; letter-spacing:2px; color:var(--white); padding:6px 20px 10px; }
-  .today-workout-card {
+  .today-workout-card { overflow:visible;
     margin:0 20px 14px; background:var(--piano);
     border:1px solid rgba(255,255,255,0.12); border-radius:16px; padding:16px; cursor:pointer;
   }
