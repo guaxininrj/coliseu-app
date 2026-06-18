@@ -1,4 +1,4 @@
-const CACHE_NAME = 'coliseu-v3';
+const CACHE_NAME = 'coliseu-v5';
 const FILES_TO_CACHE = [
   './',
   './index.html',
