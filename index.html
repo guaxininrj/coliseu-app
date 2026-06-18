@@ -5,18 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Coliseu App</title>
 <style>
-  html, body {
-    margin: 0 !important; padding: 0 !important;
-    width: 100vw !important; height: 100vh !important;
-    overflow: hidden !important; background: #080808 !important;
-    border: none !important; border-radius: 0 !important;
-    box-shadow: none !important;
-  }
-  .phone-frame {
-    width: 100vw !important; height: 100vh !important;
-    border-radius: 0 !important; border: none !important;
-    box-shadow: none !important; background: #080808 !important;
-  }
+  html, body { margin:0 !important; padding:0 !important; width:100vw !important; height:100vh !important; overflow:hidden !important; background:#080808 !important; border:none !important; border-radius:0 !important; box-shadow:none !important; }
+  .phone-frame { width:100vw !important; height:100vh !important; border-radius:0 !important; border:none !important; box-shadow:none !important; }
+  .screen { padding-bottom: 70px !important; }
+  .bottom-nav { position:fixed !important; bottom:0 !important; left:0 !important; right:0 !important; z-index:50 !important; }
 
   @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700&display=swap');
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -36,7 +28,7 @@
   body { background:var(--black); font-family:'Inter',sans-serif; overflow:hidden; margin:0; padding:0; }
 
   .phone-frame { width:100vw; height:100vh; background:var(--black); overflow:hidden; position:relative; }
-  .phone-notch { display:none !important; }
+  .phone-notch { display:none; }
 
   /* ========== LAYER SYSTEM ========== */
   .layer { position:absolute; inset:0; opacity:0; pointer-events:none; transition:opacity 0.8s ease; display:flex; flex-direction:column; }
@@ -346,6 +338,25 @@
 
   body { padding-bottom: env(safe-area-inset-bottom, 0) !important; }
   .bottom-nav { padding-bottom: 12px !important; background: #111 !important; }
+
+/* ===== TREINO ===== */
+.dia-group-card { background:var(--card); border-radius:14px; padding:14px; margin-bottom:12px; }
+.dia-group-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.dia-group-icon { font-size:17px; }
+.dia-group-name { flex:1; font-weight:700; font-size:12.5px; color:var(--white); text-transform:uppercase; letter-spacing:0.5px; }
+.dia-remove-btn { background:none; border:none; color:var(--muted); font-size:19px; cursor:pointer; line-height:1; padding:0 2px; }
+.dia-exercise-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-top:1px solid var(--border); }
+.dia-exercise-name { flex:1; font-size:12.5px; color:var(--white); }
+.dia-num-input { width:36px; background:var(--card2); border:1px solid var(--border); color:var(--white); border-radius:8px; text-align:center; font-size:12px; padding:5px 2px; }
+.dia-x { color:var(--muted); font-size:11px; }
+.dia-exercise-row-view { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-top:1px solid var(--border); font-size:12.5px; color:var(--gray); gap:10px; }
+.dia-exercise-tag { color:var(--white); font-weight:600; font-size:11px; background:var(--card2); padding:3px 8px; border-radius:6px; white-space:nowrap; }
+.dia-picker-empty { color:var(--muted); font-size:11.5px; padding:4px 0; }
+.dia-add-ex-btn { width:100%; background:transparent; border:1px dashed var(--border); color:var(--gray); border-radius:10px; padding:8px; font-size:11px; font-weight:700; cursor:pointer; margin-top:8px; text-transform:uppercase; letter-spacing:0.5px; }
+.dia-add-group-btn { width:100%; background:transparent; border:1.5px dashed var(--gray); color:var(--gray); border-radius:14px; padding:13px; font-weight:700; font-size:12px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; margin-bottom:12px; }
+.dia-picker-list { margin-top:8px; background:var(--card2); border-radius:10px; overflow:hidden; max-height:220px; overflow-y:auto; }
+.dia-picker-item { padding:10px 12px; font-size:12.5px; color:var(--white); border-bottom:1px solid var(--border); cursor:pointer; }
+.gloss { position:relative; overflow:hidden; }
 </style>
   <meta name="theme-color" content="#080808">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -650,22 +661,29 @@
     <!-- TREINO -->
     <div class="screen" id="screen-treino">
       <div class="app-header gloss">
-        <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:3px;color:#fff;opacity:0.9;">GINÁSIO COLISEU</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:4px;color:#fff;opacity:0.9;">COLISEU</div>
         <div class="header-avatar">B</div>
       </div>
       <div class="personal-header"><div class="personal-title">TREINOS</div><div class="personal-sub">Selecione um grupo muscular</div></div>
       <div class="menu-list" style="padding:10px 20px;">
-        <div class="menu-item" onclick="openMuscleGroup('Peito','🛡️')"><div class="menu-icon">🛡️</div><div class="menu-label">Peito</div><div class="menu-arrow">›</div></div>
-        <div class="menu-item" onclick="openMuscleGroup('Costas','🏔️')"><div class="menu-icon">🏔️</div><div class="menu-label">Costas</div><div class="menu-arrow">›</div></div>
-        <div class="menu-item" onclick="openMuscleGroup('Ombros','⚡')"><div class="menu-icon">⚡</div><div class="menu-label">Ombros</div><div class="menu-arrow">›</div></div>
-        <div class="menu-item" onclick="openMuscleGroup('Bíceps','💪')"><div class="menu-icon">💪</div><div class="menu-label">Bíceps</div><div class="menu-arrow">›</div></div>
-        <div class="menu-item" onclick="openMuscleGroup('Tríceps','🔱')"><div class="menu-icon">🔱</div><div class="menu-label">Tríceps</div><div class="menu-arrow">›</div></div>
-        <div class="menu-item" onclick="openMuscleGroup('Antebraço','✊')"><div class="menu-icon">✊</div><div class="menu-label">Antebraço</div><div class="menu-arrow">›</div></div>
-        <div class="menu-item" onclick="openMuscleGroup('Abdômen','🔥')"><div class="menu-icon">🔥</div><div class="menu-label">Abdômen</div><div class="menu-arrow">›</div></div>
-        <div class="menu-item" onclick="openMuscleGroup('Quadríceps','🦵')"><div class="menu-icon">🦵</div><div class="menu-label">Quadríceps</div><div class="menu-arrow">›</div></div>
-        <div class="menu-item" onclick="openMuscleGroup('Posterior de Coxa','🏃')"><div class="menu-icon">🏃</div><div class="menu-label">Posterior de Coxa</div><div class="menu-arrow">›</div></div>
-        <div class="menu-item" onclick="openMuscleGroup('Glúteos','🍑')"><div class="menu-icon">🍑</div><div class="menu-label">Glúteos</div><div class="menu-arrow">›</div></div>
-        <div class="menu-item" onclick="openMuscleGroup('Panturrilhas','🦶')" style="border-bottom:none;"><div class="menu-icon">🦶</div><div class="menu-label">Panturrilhas</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="goScreen('hipertrofia')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="12" x2="22" y2="12"/><line x1="6" y1="7" x2="6" y2="17"/><line x1="18" y1="7" x2="18" y2="17"/><line x1="3" y1="9" x2="3" y2="15"/><line x1="21" y1="9" x2="21" y2="15"/></svg></div><div class="menu-label">Hipertrofia</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Antebraço','✊','treino')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><line x1="12" y1="13" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/></svg></div><div class="menu-label">Antebraço</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Abdômen','🔥','treino')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="3"/><line x1="6" y1="9" x2="18" y2="9"/><line x1="6" y1="15" x2="18" y2="15"/><line x1="12" y1="3" x2="12" y2="21"/></svg></div><div class="menu-label">Abdômen</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Quadríceps','🦵','treino')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3c0 5 1 6 1 9s-1 4-1 9"/><path d="M15 3c0 5-1 6-1 9s1 4 1 9"/><line x1="9" y1="3" x2="15" y2="3"/></svg></div><div class="menu-label">Quadríceps</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Posterior de Coxa','🏃','treino')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4c1 4 1 6 3 8"/><path d="M11 12c2 1 4 1 5 3"/><path d="M16 15c1 2 1 4 0 6"/></svg></div><div class="menu-label">Posterior de Coxa</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Glúteos','🍑','treino')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-6 3-10 7-10s7 4 7 10"/><line x1="12" y1="9" x2="12" y2="19"/></svg></div><div class="menu-label">Glúteos</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Panturrilhas','🦶','treino')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v10"/><path d="M9 13c0 3 2 4 5 4h3"/><path d="M14 20l3-3-3-1"/></svg></div><div class="menu-label">Panturrilhas</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Cardio','🫀','treino')" style="border-bottom:none;"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2-7 4 14 2-7h6"/></svg></div><div class="menu-label">Cardio</div><div class="menu-arrow">›</div></div>
+      </div>
+
+      <div style="padding:18px 20px 4px;font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;">Montar Treino</div>
+      <div class="menu-list" style="padding:0 20px 16px;">
+        <div class="menu-item" onclick="openDiaTreino('segunda')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></div><div style="flex:1;min-width:0;"><div class="menu-label">Segunda-feira</div><div id="resumo-segunda" style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Nenhum treino definido</div></div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openDiaTreino('terca')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></div><div style="flex:1;min-width:0;"><div class="menu-label">Terça-feira</div><div id="resumo-terca" style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Nenhum treino definido</div></div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openDiaTreino('quarta')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></div><div style="flex:1;min-width:0;"><div class="menu-label">Quarta-feira</div><div id="resumo-quarta" style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Nenhum treino definido</div></div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openDiaTreino('quinta')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></div><div style="flex:1;min-width:0;"><div class="menu-label">Quinta-feira</div><div id="resumo-quinta" style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Nenhum treino definido</div></div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openDiaTreino('sexta')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></div><div style="flex:1;min-width:0;"><div class="menu-label">Sexta-feira</div><div id="resumo-sexta" style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Nenhum treino definido</div></div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openDiaTreino('sabado')" style="border-bottom:none;"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg></div><div style="flex:1;min-width:0;"><div class="menu-label">Sábado</div><div id="resumo-sabado" style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Nenhum treino definido</div></div><div class="menu-arrow">›</div></div>
       </div>
       <div class="bottom-nav gloss">
         <div class="nav-item" onclick="goScreen('home');navActive(this)"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Início</div>
@@ -675,10 +693,45 @@
       </div>
     </div>
 
+    <!-- HIPERTROFIA (categoria) -->
+    <div class="screen" id="screen-hipertrofia">
+      <div class="app-header gloss">
+        <button onclick="goScreen('treino')" style="background:none;border:none;color:var(--white);font-size:22px;cursor:pointer;">←</button>
+        <span style="font-family:'Bebas Neue';font-size:18px;letter-spacing:2px;color:var(--white);">HIPERTROFIA</span>
+        <div style="width:22px;"></div>
+      </div>
+      <div class="personal-header"><div class="personal-sub">Selecione um grupo muscular</div></div>
+      <div class="menu-list" style="padding:10px 20px;">
+        <div class="menu-item" onclick="openMuscleGroup('Peito','🛡️','hipertrofia')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10c0-4 2-6 4-6s3 2 5 2 3-2 5-2 4 2 4 6"/><path d="M3 10v3c0 5 4 8 9 8s9-3 9-8v-3"/><line x1="12" y1="6" x2="12" y2="15"/></svg></div><div class="menu-label">Peito</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Costas','🏔️','hipertrofia')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M12 6c-4 1-7 4-7 9"/><path d="M12 6c4 1 7 4 7 9"/></svg></div><div class="menu-label">Costas</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Ombros','⚡','hipertrofia')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a4 4 0 0 1 8 0"/><path d="M12 14a4 4 0 0 1 8 0"/><line x1="4" y1="14" x2="4" y2="18"/><line x1="20" y1="14" x2="20" y2="18"/></svg></div><div class="menu-label">Ombros</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Trapézio','📐','hipertrofia')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6l4 16H5z"/></svg></div><div class="menu-label">Trapézio</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Bíceps','💪','hipertrofia')"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c1-3 2-5 2-7"/><path d="M7 12c0-5 3-8 7-7c4 1 6 4 5 8"/><path d="M19 13c0 2-1 4-3 5"/></svg></div><div class="menu-label">Bíceps</div><div class="menu-arrow">›</div></div>
+        <div class="menu-item" onclick="openMuscleGroup('Tríceps','🔱','hipertrofia')" style="border-bottom:none;"><div class="menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20V11a5 5 0 0 1 10 0v9"/></svg></div><div class="menu-label">Tríceps</div><div class="menu-arrow">›</div></div>
+      </div>
+      <div class="bottom-nav gloss">
+        <div class="nav-item" onclick="goScreen('home');navActive(this)"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Início</div>
+        <div class="nav-item active" onclick="goScreen('treino');navActive(this)"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Treino</div>
+        <div class="nav-item" onclick="goScreen('personal');navActive(this)"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Personal</div>
+        <div class="nav-item" onclick="goScreen('perfil');navActive(this)"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Perfil</div>
+      </div>
+    </div>
+
+    <!-- DIA DE TREINO (montar / editar / visualizar) -->
+    <div class="screen" id="screen-dia-treino">
+      <div class="app-header gloss">
+        <button onclick="goScreen('treino')" style="background:none;border:none;color:var(--white);font-size:22px;cursor:pointer;">←</button>
+        <span id="dia-title" style="font-family:'Bebas Neue';font-size:18px;letter-spacing:2px;color:var(--white);">SEGUNDA-FEIRA</span>
+        <div style="width:22px;"></div>
+      </div>
+      <div id="dia-treino-content" style="padding:16px;"></div>
+      <div id="dia-treino-footer" style="position:sticky;bottom:0;background:var(--dark);padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:10px;"></div>
+    </div>
+
     <!-- TREINO DETALHE (grupo muscular) -->
     <div class="screen" id="screen-treino-detail">
       <div class="app-header gloss">
-        <button onclick="goScreen('treino')" style="background:none;border:none;color:var(--white);font-size:22px;cursor:pointer;">←</button>
+        <button onclick="goScreen(mdReturnScreen)" style="background:none;border:none;color:var(--white);font-size:22px;cursor:pointer;">←</button>
         <span id="md-title" style="font-family:'Bebas Neue';font-size:18px;letter-spacing:2px;color:var(--white);">PEITO</span>
         <div style="width:22px;"></div>
       </div>
@@ -693,11 +746,8 @@
         <div class="nav-item" onclick="goScreen('home');navActive(this)"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Início</div>
         <div class="nav-item active" onclick="goScreen('treino');navActive(this)"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Treino</div>
         <div class="nav-item" onclick="goScreen('personal');navActive(this)"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Personal</div>
-        <div class="nav-item" onclick="goScreen('perfil');navActive(this)"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Perfil</div>
-      </div>
-    </div>
+        <div class="nav-item" onclick="goScreen('perfil');navActive(this)"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Perfil
 
-    <!-- PERSONAL -->
     <div class="screen" id="screen-personal">
       <div class="app-header gloss">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:3px;color:#fff;opacity:0.9;">GINÁSIO COLISEU</div>
@@ -1577,6 +1627,284 @@
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
     }
-  </script>
+  
+/* ===== JS TREINO ===== */
+
+// ============ JS: BASE (provavelmente você já tem isso) ============
+  
+  
+
+// ============ JS: EXERCÍCIOS POR GRUPO + ABRIR GRUPO MUSCULAR + MONTAR TREINO ============
+  const exerciseData = {
+    'Peito': [
+      'Supino reto com barra','Supino reto com halteres','Supino inclinado com barra','Supino inclinado com halteres',
+      'Supino declinado','Crucifixo reto','Crucifixo inclinado','Crossover na polia','Peck Deck (Voador)','Flexão de braço'
+    ],
+    'Costas': [
+      'Barra fixa','Puxada frontal aberta','Puxada frontal fechada','Remada curvada com barra','Remada unilateral com halter',
+      'Remada baixa na polia','Remada cavalinho (T-Bar)','Pulldown com corda','Pullover na polia','Levantamento terra'
+    ],
+    'Ombros': [
+      'Desenvolvimento com barra','Desenvolvimento com halteres','Elevação lateral','Elevação frontal','Elevação lateral na polia',
+      'Desenvolvimento Arnold','Crucifixo inverso','Face Pull','Remada alta','Máquina de ombro'
+    ],
+    'Trapézio': [
+      'Encolhimento com Halteres','Encolhimento com Barra','Remada Alta'
+    ],
+    'Bíceps': [
+      'Rosca direta com barra','Rosca alternada','Rosca martelo','Rosca concentrada','Rosca Scott',
+      'Rosca na polia baixa','Rosca inversa','Rosca 21','Rosca inclinada','Rosca unilateral na polia'
+    ],
+    'Tríceps': [
+      'Tríceps pulley com barra','Tríceps pulley com corda','Tríceps francês','Tríceps testa','Tríceps banco',
+      'Mergulho nas paralelas','Tríceps coice','Tríceps unilateral na polia','Supino fechado','Extensão acima da cabeça com halter'
+    ],
+    'Antebraço': [
+      "Farmer's Walk",'Rosca Inversa com Barra','Rosca Martelo','Rosca de Punho (Wrist Curl)','Dead Hang (sustentação na barra)'
+    ],
+    'Abdômen': [
+      'Cable Crunch (abdominal na polia)','Elevação de Pernas','Ab Wheel','Prancha','Abdominal na Máquina'
+    ],
+    'Quadríceps': [
+      'Agachamento Livre','Leg Press 45°','Hack Squat','Cadeira Extensora','Bulgarian Split Squat'
+    ],
+    'Posterior de Coxa': [
+      'Stiff','Romanian Deadlift (RDL)','Mesa Flexora','Levantamento Terra','Nordic Curl'
+    ],
+    'Glúteos': [
+      'Hip Thrust','Agachamento Livre','Stiff','Afundo','Abdução na Máquina'
+    ],
+    'Panturrilhas': [
+      'Panturrilha em Pé','Panturrilha Sentado','Panturrilha no Leg Press','Donkey Calf Raise','Panturrilha Unilateral'
+    ]
+  };
+
+  let mdReturnScreen = 'treino';
+  function openMuscleGroup(name, icon, returnTo) {
+    mdReturnScreen = returnTo || 'treino';
+    document.getElementById('md-title').textContent = name.toUpperCase();
+    document.getElementById('md-icon').textContent = icon;
+    document.getElementById('md-name').textContent = name.toLowerCase();
+
+    const list = document.getElementById('md-exercise-list');
+    const empty = document.getElementById('md-empty');
+    const exercises = exerciseData[name];
+
+    if (exercises && exercises.length) {
+      list.innerHTML = exercises.map(ex => {
+        const safe = ex.replace(/'/g, "\\'");
+        return `
+        <div class="exercise-card" onclick="openModal('${safe}','4 séries · 12 reps',4)">
+          <div class="exercise-thumb">${icon}</div>
+          <div class="exercise-info">
+            <div class="ex-name">${ex}</div>
+            <div class="ex-detail">4 séries · 12 reps</div>
+          </div>
+          <div class="ex-check" onclick="event.stopPropagation(); toggleCheck(this)"></div>
+        </div>`;
+      }).join('');
+      list.style.display = 'flex';
+      empty.style.display = 'none';
+    } else {
+      list.innerHTML = '';
+      list.style.display = 'none';
+      empty.style.display = 'flex';
+    }
+
+    goScreen('treino-detail');
+  }
+
+  // ===== MONTAR TREINO (plano por dia da semana) =====
+  const DIAS_SEMANA = [
+    {key:'segunda', label:'Segunda-feira'},
+    {key:'terca', label:'Terça-feira'},
+    {key:'quarta', label:'Quarta-feira'},
+    {key:'quinta', label:'Quinta-feira'},
+    {key:'sexta', label:'Sexta-feira'},
+    {key:'sabado', label:'Sábado'}
+  ];
+  const GRUPOS_MUSCULARES = [
+    {name:'Peito', icon:'🛡️'}, {name:'Costas', icon:'🏔️'}, {name:'Ombros', icon:'⚡'}, {name:'Trapézio', icon:'📐'},
+    {name:'Bíceps', icon:'💪'}, {name:'Tríceps', icon:'🔱'}, {name:'Antebraço', icon:'✊'},
+    {name:'Abdômen', icon:'🔥'}, {name:'Quadríceps', icon:'🦵'}, {name:'Posterior de Coxa', icon:'🏃'},
+    {name:'Glúteos', icon:'🍑'}, {name:'Panturrilhas', icon:'🦶'}, {name:'Cardio', icon:'🫀'}
+  ];
+
+  let weekPlan = load('weekplan', {});
+  let diaAtual = null;
+  let diaEditList = [];
+  let diaModoEdicao = false;
+  let grupoPickerAberto = false;
+  let exercicioPickerAberto = null;
+
+  function escJS(s) { return String(s).replace(/'/g, "\\'"); }
+
+  function openDiaTreino(dia) {
+    diaAtual = dia;
+    diaModoEdicao = false;
+    grupoPickerAberto = false;
+    exercicioPickerAberto = null;
+    const info = DIAS_SEMANA.find(d => d.key === dia);
+    document.getElementById('dia-title').textContent = info.label.toUpperCase();
+    renderDiaTreino();
+    goScreen('dia-treino');
+  }
+
+  function iniciarEdicaoDia() {
+    diaModoEdicao = true;
+    diaEditList = weekPlan[diaAtual] ? JSON.parse(JSON.stringify(weekPlan[diaAtual])) : [];
+    grupoPickerAberto = false;
+    exercicioPickerAberto = null;
+    renderDiaTreino();
+  }
+
+  function cancelarEdicaoDia() {
+    diaModoEdicao = false;
+    renderDiaTreino();
+  }
+
+  function salvarTreinoDia() {
+    weekPlan[diaAtual] = diaEditList;
+    save('weekplan', weekPlan);
+    diaModoEdicao = false;
+    atualizarResumosDias();
+    renderDiaTreino();
+  }
+
+  function toggleGrupoPicker() {
+    grupoPickerAberto = !grupoPickerAberto;
+    renderDiaTreino();
+  }
+
+  function adicionarGrupoAoDia(nome, icon) {
+    diaEditList.push({name: nome, icon: icon, exercises: []});
+    grupoPickerAberto = false;
+    renderDiaTreino();
+  }
+
+  function removerGrupoDoDia(idx) {
+    diaEditList.splice(idx, 1);
+    if (exercicioPickerAberto === idx) exercicioPickerAberto = null;
+    renderDiaTreino();
+  }
+
+  function toggleExercicioPicker(idx) {
+    exercicioPickerAberto = (exercicioPickerAberto === idx) ? null : idx;
+    renderDiaTreino();
+  }
+
+  function adicionarExercicioAoGrupo(idx, nome) {
+    diaEditList[idx].exercises.push({name: nome, sets: 4, reps: 12});
+    exercicioPickerAberto = null;
+    renderDiaTreino();
+  }
+
+  function removerExercicioDoGrupo(gi, ei) {
+    diaEditList[gi].exercises.splice(ei, 1);
+    renderDiaTreino();
+  }
+
+  function atualizarSetReps(gi, ei, campo, valor) {
+    const n = Math.max(1, parseInt(valor) || 1);
+    diaEditList[gi].exercises[ei][campo] = n;
+  }
+
+  function renderDiaTreino() {
+    const container = document.getElementById('dia-treino-content');
+    const footer = document.getElementById('dia-treino-footer');
+    if (!container || !footer) return;
+
+    if (!diaModoEdicao) {
+      const plano = weekPlan[diaAtual];
+      if (!plano || plano.length === 0) {
+        container.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;">
+            <div style="width:56px;height:56px;border-radius:16px;background:var(--card);display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>
+            </div>
+            <div style="color:var(--white);font-weight:600;font-size:14px;margin-bottom:6px;">Nenhum treino definido</div>
+            <div style="color:var(--muted);font-size:12px;line-height:1.5;">Escolha os grupos musculares e exercícios desse dia.</div>
+          </div>`;
+        footer.innerHTML = `<button class="modal-btn-primary" style="width:100%;" onclick="iniciarEdicaoDia()">Montar treino</button>`;
+        return;
+      }
+      container.innerHTML = plano.map(g => `
+        <div class="dia-group-card">
+          <div class="dia-group-header"><span class="dia-group-icon">${g.icon}</span><span class="dia-group-name">${g.name}</span></div>
+          ${g.exercises.length ? g.exercises.map(ex => `
+            <div class="dia-exercise-row-view"><span>${ex.name}</span><span class="dia-exercise-tag">${ex.sets}x${ex.reps}</span></div>
+          `).join('') : '<div class="dia-exercise-empty">Nenhum exercício adicionado</div>'}
+        </div>
+      `).join('');
+      footer.innerHTML = `<button class="modal-btn-primary" style="width:100%;" onclick="iniciarEdicaoDia()">Editar treino</button>`;
+      return;
+    }
+
+    // modo edição
+    const gruposDisponiveis = GRUPOS_MUSCULARES.filter(gm => !diaEditList.some(g => g.name === gm.name));
+    container.innerHTML = diaEditList.map((g, gi) => `
+      <div class="dia-group-card">
+        <div class="dia-group-header">
+          <span class="dia-group-icon">${g.icon}</span><span class="dia-group-name">${g.name}</span>
+          <button class="dia-remove-btn" onclick="removerGrupoDoDia(${gi})">×</button>
+        </div>
+        ${g.exercises.map((ex, ei) => `
+          <div class="dia-exercise-row">
+            <span class="dia-exercise-name">${ex.name}</span>
+            <input type="number" min="1" max="10" class="dia-num-input" value="${ex.sets}" onchange="atualizarSetReps(${gi},${ei},'sets',this.value)">
+            <span class="dia-x">x</span>
+            <input type="number" min="1" max="50" class="dia-num-input" value="${ex.reps}" onchange="atualizarSetReps(${gi},${ei},'reps',this.value)">
+            <button class="dia-remove-btn" onclick="removerExercicioDoGrupo(${gi},${ei})">×</button>
+          </div>
+        `).join('')}
+        <button class="dia-add-ex-btn" onclick="toggleExercicioPicker(${gi})">+ Exercício</button>
+        ${exercicioPickerAberto === gi ? `
+          <div class="dia-picker-list">
+            ${(exerciseData[g.name] || []).filter(nome => !g.exercises.some(e => e.name === nome)).map(nome => `
+              <div class="dia-picker-item" onclick="adicionarExercicioAoGrupo(${gi}, '${escJS(nome)}')">${nome}</div>
+            `).join('') || '<div class="dia-picker-empty">Todos os exercícios já foram adicionados</div>'}
+          </div>` : ''}
+      </div>
+    `).join('') + `
+      <button class="dia-add-group-btn" onclick="toggleGrupoPicker()">+ Adicionar grupo muscular</button>
+      ${grupoPickerAberto ? `
+        <div class="dia-picker-list">
+          ${gruposDisponiveis.map(gm => `<div class="dia-picker-item" onclick="adicionarGrupoAoDia('${escJS(gm.name)}','${gm.icon}')">${gm.icon}&nbsp; ${gm.name}</div>`).join('') || '<div class="dia-picker-empty">Todos os grupos já foram adicionados</div>'}
+        </div>` : ''}
+    `;
+    footer.innerHTML = `<button class="modal-btn-secondary" style="flex:1;" onclick="cancelarEdicaoDia()">Cancelar</button><button class="modal-btn-primary" style="flex:2;" onclick="salvarTreinoDia()">Salvar treino</button>`;
+  }
+
+  function atualizarResumosDias() {
+    DIAS_SEMANA.forEach(d => {
+      const el = document.getElementById('resumo-' + d.key);
+      if (!el) return;
+      const plano = weekPlan[d.key];
+      if (plano && plano.length) {
+        const totalEx = plano.reduce((acc, g) => acc + g.exercises.length, 0);
+        el.textContent = plano.map(g => g.name).join(', ') + ' · ' + totalEx + (totalEx === 1 ? ' exercício' : ' exercícios');
+        el.style.color = 'var(--green)';
+        el.style.fontWeight = '600';
+      } else {
+        el.textContent = 'Nenhum treino definido';
+        el.style.color = 'var(--muted)';
+        el.style.fontWeight = '400';
+      }
+    });
+  }
+  atualizarResumosDias();
+
+// ============ JS: MODAL DE SÉRIE/DESCANSO (timer) ============
+  // ===== MODAL =====
+  let restIv=null, restSecs=60, curSerie=1, totSeries=4;
+  
+  
+  
+  
+
+// ============ JS: MARCAR EXERCÍCIO COMO FEITO (checkbox) ============
+  
+
+</script>
 </body>
 </html>
