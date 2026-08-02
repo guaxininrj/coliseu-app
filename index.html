@@ -3,7 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Preview - App Alunos</title>
+<title>Coliseu Academia</title>
+<link rel="manifest" href="./manifest.json" />
+<link rel="icon" type="image/png" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="theme-color" content="#080808" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Coliseu" />
 
 <!-- Tailwind (CDN, build standalone) -->
 <script src="https://cdn.tailwindcss.com"></script>
@@ -53,6 +60,16 @@
       (e.filename ? ("Arquivo: " + e.filename + ":" + e.lineno + "\n") : "") +
       (e.error && e.error.stack ? e.error.stack : "") + "\n\n";
   });
+  // Registra o service worker (necessário pro navegador oferecer a opção
+  // de "Instalar app" de verdade, com ícone próprio, em vez de um atalho
+  // genérico de página).
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("./sw.js").catch(function (err) {
+        console.warn("Falha ao registrar service worker:", err);
+      });
+    });
+  }
 </script>
 
 <!-- O código do app está dividido em vários arquivos lógicos (ver pasta

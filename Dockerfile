@@ -4,6 +4,10 @@ RUN apk add --no-cache nginx mysql-client \
     && docker-php-ext-install mysqli
 
 COPY index.html /var/www/html/index.html
+COPY manifest.json /var/www/html/manifest.json
+COPY sw.js /var/www/html/sw.js
+COPY icon-192.png /var/www/html/icon-192.png
+COPY icon-512.png /var/www/html/icon-512.png
 COPY api /var/www/html/api
 
 RUN echo 'server { \
