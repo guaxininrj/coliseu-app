@@ -1257,8 +1257,23 @@ function TreinoTab({ aluno, onSalvar }) {
   const [dias, setDias] = useState(treino.dias || []);
   const [salvando, setSalvando] = useState(false);
   const [confirmTrocar, setConfirmTrocar] = useState(false);
+  // Modo visualização: cards fechados e compactos (o que o professor vê no
+  // dia a dia). Modo edição: formulário completo de séries/reps/carga.
+  // Começa em visualização se já existir um treino salvo com dias.
+  const [editando, setEditando] = useState(!(treino.dias && treino.dias.length > 0));
+  const [diasAbertos, setDiasAbertos] = useState({});
 
   const diasAtivos = dias.map((d) => d.dia);
+
+  function toggleDiaAberto(dia) {
+    setDiasAbertos((prev) => ({ ...prev, [dia]: !prev[dia] }));
+  }
+
+  function cancelarEdicao() {
+    setModelo(treino.modelo || null);
+    setDias(treino.dias || []);
+    if (treino.dias && treino.dias.length > 0) setEditando(false);
+  }
 
   function toggleDia(dia) {
     if (diasAtivos.includes(dia)) {
@@ -1311,6 +1326,7 @@ function TreinoTab({ aluno, onSalvar }) {
     setSalvando(true);
     await onSalvar({ ...aluno, treino: { modelo, dias } });
     setSalvando(false);
+    setEditando(false);
   }
 
   function escolherModelo(m) {
@@ -1407,61 +1423,91 @@ function TreinoTab({ aluno, onSalvar }) {
         </div>
         <div className="flex gap-2">
           <BotaoPDF label="Imprimir" onClick={() => gerarPDF(aluno.nome, "Treino", gerarLinhasPDF())} />
-          <button
-            onClick={salvar}
-            disabled={salvando}
-            className="flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-md text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60"
-          >
-            {salvando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-            Salvar
-          </button>
-        </div>
-      </div>
-
-      {/* Seletor de dias */}
-      <div className="mb-6">
-        <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Dias de treino</p>
-        <div className="flex flex-wrap gap-2">
-          {DIAS_SEMANA.map((dia) => {
-            const ativo = diasAtivos.includes(dia);
-            return (
+          {editando ? (
+            <React.Fragment>
+              {treino.dias && treino.dias.length > 0 ? (
+                <button
+                  onClick={cancelarEdicao}
+                  className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-md text-stone-600 border border-stone-300 hover:bg-stone-100"
+                >
+                  Cancelar
+                </button>
+              ) : null}
               <button
-                key={dia}
-                onClick={() => toggleDia(dia)}
-                className="px-3 py-1.5 rounded-md text-sm font-medium border transition-all"
-                style={
-                  ativo
-                    ? { background: "#064e3b", color: "#fff", borderColor: "#064e3b" }
-                    : { background: "#fff", color: "#78716c", borderColor: "#e7e5e4" }
-                }
+                onClick={salvar}
+                disabled={salvando}
+                className="flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-md text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60"
               >
-                {dia}
+                {salvando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                Salvar
               </button>
-            );
-          })}
+            </React.Fragment>
+          ) : (
+            <button
+              onClick={() => setEditando(true)}
+              className="flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-md text-white bg-emerald-700 hover:bg-emerald-800"
+            >
+              <Pencil size={14} /> Editar treino
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Dias com exercícios */}
-      {dias.length === 0 ? (
-        <div className="text-center py-12 text-stone-400 border border-dashed border-stone-200 rounded-lg">
-          <Dumbbell size={24} className="mx-auto mb-2 opacity-40" />
-          <p className="text-sm">Selecione os dias de treino acima.</p>
-        </div>
-      ) : null}
+      {editando ? (
+        <React.Fragment>
+          {/* Seletor de dias */}
+          <div className="mb-6">
+            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">Dias de treino</p>
+            <div className="flex flex-wrap gap-2">
+              {DIAS_SEMANA.map((dia) => {
+                const ativo = diasAtivos.includes(dia);
+                return (
+                  <button
+                    key={dia}
+                    onClick={() => toggleDia(dia)}
+                    className="px-3 py-1.5 rounded-md text-sm font-medium border transition-all"
+                    style={
+                      ativo
+                        ? { background: "#064e3b", color: "#fff", borderColor: "#064e3b" }
+                        : { background: "#fff", color: "#78716c", borderColor: "#e7e5e4" }
+                    }
+                  >
+                    {dia}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-      <div className="flex flex-col gap-4">
-        {dias.map((diaObj) => (
-          <DiaTreino
-            key={diaObj.dia}
-            diaObj={diaObj}
-            modelo={modelo}
-            onAddExercicio={() => addExercicio(diaObj.dia)}
-            onRemoveExercicio={(id) => removeExercicio(diaObj.dia, id)}
-            onUpdateExercicio={(id, campo, val) => updateExercicio(diaObj.dia, id, campo, val)}
-          />
-        ))}
-      </div>
+          {/* Dias com exercícios */}
+          {dias.length === 0 ? (
+            <div className="text-center py-12 text-stone-400 border border-dashed border-stone-200 rounded-lg">
+              <Dumbbell size={24} className="mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Selecione os dias de treino acima.</p>
+            </div>
+          ) : null}
+
+          <div className="flex flex-col gap-4">
+            {dias.map((diaObj) => (
+              <DiaTreino
+                key={diaObj.dia}
+                diaObj={diaObj}
+                modelo={modelo}
+                onAddExercicio={() => addExercicio(diaObj.dia)}
+                onRemoveExercicio={(id) => removeExercicio(diaObj.dia, id)}
+                onUpdateExercicio={(id, campo, val) => updateExercicio(diaObj.dia, id, campo, val)}
+              />
+            ))}
+          </div>
+        </React.Fragment>
+      ) : (
+        <TreinoResumo
+          dias={dias}
+          modelo={modelo}
+          abertos={diasAbertos}
+          onToggle={toggleDiaAberto}
+        />
+      )}
 
       {/* Modal confirmar troca de modelo */}
       {confirmTrocar && (
@@ -1477,6 +1523,99 @@ function TreinoTab({ aluno, onSalvar }) {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function TreinoResumo({ dias, modelo, abertos, onToggle }) {
+  if (dias.length === 0) {
+    return (
+      <div className="text-center py-12 text-stone-400 border border-dashed border-stone-200 rounded-lg">
+        <Dumbbell size={24} className="mx-auto mb-2 opacity-40" />
+        <p className="text-sm">Nenhum treino configurado ainda.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      {dias.map((d) => {
+        const aberto = !!abertos[d.dia];
+        // Tipos de treino do dia (grupo muscular ou padrão de movimento),
+        // sem repetir, pra destacar de cara o que é o dia sem abrir tudo.
+        const tipos = Array.from(
+          new Set(
+            d.exercicios
+              .map((ex) => (modelo === "coliseu" ? ex.padrao : ex.grupo))
+              .filter(Boolean)
+          )
+        );
+        return (
+          <div key={d.dia} className="rounded-lg border border-stone-200 overflow-hidden bg-white">
+            <button
+              onClick={() => onToggle(d.dia)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-stone-50 text-left"
+            >
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                <span className="text-sm font-bold text-stone-800 shrink-0" style={{ fontFamily: SANS }}>
+                  {d.dia}
+                </span>
+                {tipos.length > 0 ? (
+                  tipos.map((t) => (
+                    <span
+                      key={t}
+                      className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100"
+                    >
+                      {t}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-stone-400">Sem exercícios</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-stone-400">
+                  {d.exercicios.length} exerc.
+                </span>
+                <ChevronLeft
+                  size={14}
+                  className="text-stone-400"
+                  style={{ transform: aberto ? "rotate(90deg)" : "rotate(-90deg)", transition: "transform .15s" }}
+                />
+              </div>
+            </button>
+            {aberto ? (
+              <div className="border-t border-stone-100 divide-y divide-stone-100">
+                {d.exercicios.length === 0 ? (
+                  <p className="text-xs text-stone-400 text-center py-6">Nenhum exercício ainda.</p>
+                ) : (
+                  d.exercicios.map((ex) => {
+                    const categoria =
+                      modelo === "coliseu"
+                        ? [ex.padrao, ex.capacidade].filter(Boolean).join(" · ")
+                        : ex.grupo;
+                    const detalhes = [
+                      ex.series ? `${ex.series} séries` : null,
+                      ex.reps ? `${ex.reps} reps` : null,
+                      ex.carga ? `${ex.carga} carga` : null,
+                      ex.intervalo ? `${ex.intervalo} intervalo` : null,
+                    ].filter(Boolean).join("  ·  ");
+                    return (
+                      <div key={ex.id} className="px-4 py-3">
+                        <p className="text-sm font-semibold text-stone-800">
+                          {ex.nome || "Exercício sem nome"}
+                        </p>
+                        {categoria ? <p className="text-xs text-emerald-700 mt-0.5">{categoria}</p> : null}
+                        {detalhes ? <p className="text-xs text-stone-500 mt-0.5">{detalhes}</p> : null}
+                        {ex.obs ? <p className="text-xs text-stone-400 mt-1 italic">{ex.obs}</p> : null}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
