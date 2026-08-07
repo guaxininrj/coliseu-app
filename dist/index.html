@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Coliseu Academia</title>
+<link rel="manifest" href="./manifest.json" />
+<link rel="icon" type="image/png" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="theme-color" content="#080808" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Coliseu" />
+
+<!-- Tailwind (CDN, build standalone) -->
+<script src="./vendor/tailwind.js"></script>
+
+<!-- React + ReactDOM (UMD, expõem window.React / window.ReactDOM) -->
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+
+<!-- react-is é uma dependência obrigatória do build UMD do Recharts;
+     sem ela, window.Recharts fica incompleto/undefined silenciosamente -->
+<script src="./vendor/react-is.js"></script>
+
+<!-- Recharts (usado pelo app para gráficos) -->
+<script src="./vendor/recharts.js"></script>
+
+<!-- Babel standalone, para transformar o JSX direto no navegador -->
+<style>
+  body { margin: 0; background: #f5f5f4; }
+  #fatal-error {
+    display: none;
+    font-family: monospace;
+    white-space: pre-wrap;
+    background: #fff1f2;
+    color: #881337;
+    border: 1px solid #fecdd3;
+    padding: 16px;
+    margin: 16px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  /* Esconde a barra de rolagem visual das abas (Chrome/Safari), mas mantém
+     o gesto de arrastar/deslizar funcionando normalmente no celular. */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="fatal-error"></div>
+
+<script>
+  window.addEventListener("error", function (e) {
+    var box = document.getElementById("fatal-error");
+    box.style.display = "block";
+    box.textContent += "Erro: " + e.message + "\n" +
+      (e.filename ? ("Arquivo: " + e.filename + ":" + e.lineno + "\n") : "") +
+      (e.error && e.error.stack ? e.error.stack : "") + "\n\n";
+  });
+  // Registra o service worker (necessário pro navegador oferecer a opção
+  // de "Instalar app" de verdade, com ícone próprio, em vez de um atalho
+  // genérico de página).
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("./sw.js").catch(function (err) {
+        console.warn("Falha ao registrar service worker:", err);
+      });
+    });
+  }
+</script>
+
+<!-- O código do app está dividido em vários arquivos lógicos (ver pasta
+     src/), concatenados aqui na ordem correta de dependência, e
+     transformado pelo Babel direto no navegador. Funciona offline,
+     sem precisar de servidor nem de build. Os gráficos (Recharts)
+     aparecem automaticamente assim que o script externo terminar de
+     carregar (ver hook useRecharts em 02-charts.jsx). Os exercícios de
+     musculação e do método Coliseu usam o mesmo componente
+     (ExercicioForm em 09-treino-tab.jsx). O salvamento de aluno tem
+     checagem de concorrência via campo "_rev" (ver salvarAluno em
+     18-app.jsx). A exclusão de aluno é soft delete, com Lixeira (ver
+     07-lixeira.jsx). A Administração recebe um lembrete visual quando
+     fazem 3 dias ou mais desde o último backup exportado (ver
+     ULTIMO_BACKUP_KEY e o banner de aviso em 18-app.jsx). -->
+<script src="./app.js" defer></script>
+
+<script>
+  window.addEventListener("DOMContentLoaded", function () {
+    setTimeout(function () {
+      var root = document.getElementById("root");
+      if (root && root.innerHTML.trim() === "") {
+        var box = document.getElementById("fatal-error");
+        box.style.display = "block";
+        box.textContent += "Aviso: a div #root continua vazia após carregar. Verifique o console do navegador (F12) para mais detalhes.\n";
+      }
+    }, 3000);
+  });
+</script>
+</body>
+</html>

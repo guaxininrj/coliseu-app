@@ -1,0 +1,2 @@
+# babel so e usado pra compilar na maquina, nunca vai pro deploy
+build/
