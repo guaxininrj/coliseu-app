@@ -3542,13 +3542,16 @@ function App() {
   const dias = diasDesdeUltimoBackup();
   const precisaAvisoBackup = role === "admin" && (dias === null || dias >= DIAS_ALERTA_BACKUP) && index.length > 0;
 
-  // Mantém a tela de loading por um tempo mínimo (evita "flash" rápido demais)
-  // e só libera a tela de login depois que o índice de alunos já carregou.
+  // Mantém a tela de loading por um tempo mínimo (evita "flash" rápido demais).
+  //
+  // Antes esperava tambem o indice de alunos carregar. Nao serve mais: os
+  // dados so sao buscados DEPOIS do login, entao esperar por eles aqui
+  // prenderia a pessoa na tela de carregamento pra sempre.
   useEffect(() => {
-    if (stage !== "loading" || loadingIndex) return;
-    const timer = setTimeout(() => setStage("login"), 10000);
+    if (stage !== "loading") return;
+    const timer = setTimeout(() => setStage("login"), 2500);
     return () => clearTimeout(timer);
-  }, [stage, loadingIndex]);
+  }, [stage]);
 
   async function persistIndex(novoIndex) {
     setIndex(novoIndex);
