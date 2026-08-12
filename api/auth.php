@@ -19,9 +19,24 @@ $dados  = json_decode(file_get_contents('php://input'), true);
 $perfil = $dados['perfil'] ?? '';
 $senha  = $dados['senha']  ?? '';
 
+/* Os hashes vem em base64 de proposito.
+   Um hash bcrypt e algo como $2y$10$y/UmBn... e o docker-compose trata $
+   como comeco de variavel: o $y sumiu no caminho e o hash chegou aqui
+   truncado, entao a senha certa era recusada. O hash do admin passou intacto
+   por acaso -- depois do $ dele vinha um digito, e nome de variavel nao
+   comeca com digito. Em base64 nao existe $, entao nao ha o que interpretar. */
+function hashDoAmbiente($nome) {
+    $b64 = getenv($nome . '_B64');
+    if ($b64) {
+        $bruto = base64_decode($b64, true);
+        if ($bruto) return $bruto;
+    }
+    return getenv($nome) ?: '';
+}
+
 $hashes = [
-    'professor' => getenv('SENHA_PROFESSOR_HASH') ?: '',
-    'admin'     => getenv('SENHA_ADMIN_HASH')     ?: '',
+    'professor' => hashDoAmbiente('SENHA_PROFESSOR_HASH'),
+    'admin'     => hashDoAmbiente('SENHA_ADMIN_HASH'),
 ];
 
 /* Bloqueio por tentativas, por IP e em arquivo. Sem isto, uma senha de
