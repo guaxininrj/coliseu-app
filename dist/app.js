@@ -9,7 +9,8 @@ function _extends() { return _extends = Object.assign ? Object.assign.bind() : f
 const {
   useState,
   useEffect,
-  useRef
+  useRef,
+  useCallback
 } = React;
 function _IconBase({
   glyph,
@@ -265,14 +266,112 @@ function _seedMockData() {
 // _seedMockData(); // desativado: dados agora persistem no MySQL real
 
 const API_BASE = "/api/storage.php";
+const API_LOGIN = "/api/auth.php";
+const CHAVE_TOKEN = "coliseu_token";
+
+/* A senha nao mora mais aqui. Ela ficava em duas constantes neste arquivo,
+   entao qualquer um que abrisse o app.js lia as duas -- e a API nao exigia
+   nada, entao nem era preciso ler a senha pra mexer nos dados dos alunos.
+   Agora quem confere e o servidor; o navegador guarda so um token com prazo. */
+function tokenSalvo() {
+  try {
+    return window.localStorage.getItem(CHAVE_TOKEN) || "";
+  } catch (e) {
+    return "";
+  }
+}
+const CHAVE_PERFIL = "coliseu_perfil";
+function guardarToken(t, perfil) {
+  try {
+    if (t) {
+      window.localStorage.setItem(CHAVE_TOKEN, t);
+      window.localStorage.setItem(CHAVE_PERFIL, perfil || "");
+    } else {
+      window.localStorage.removeItem(CHAVE_TOKEN);
+      window.localStorage.removeItem(CHAVE_PERFIL);
+    }
+  } catch (e) {}
+}
+function perfilSalvo() {
+  try {
+    return window.localStorage.getItem(CHAVE_PERFIL) || "";
+  } catch (e) {
+    return "";
+  }
+}
+async function entrarNaApi(perfil, senha) {
+  const res = await fetch(API_LOGIN, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      perfil,
+      senha
+    })
+  });
+  const dados = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(dados.erro || "Nao foi possivel entrar");
+  guardarToken(dados.token, dados.perfil || perfil);
+  return dados;
+}
+
+/* Token vencido volta pra tela de login em vez de deixar o app parecendo que
+   funciona sem conseguir salvar nada. Avisa por evento em vez de recarregar:
+   recarregar viraria laco, ja que a propria tela inicial fala com a API. */
+const EVENTO_SESSAO = "coliseu:sessao-expirada";
+function aoPerderSessao() {
+  guardarToken("");
+  window.dispatchEvent(new Event(EVENTO_SESSAO));
+}
+async function chamarApi(url, opcoes = {}) {
+  const res = await fetch(url, {
+    ...opcoes,
+    headers: {
+      ...(opcoes.headers || {}),
+      Authorization: "Bearer " + tokenSalvo()
+    }
+  });
+  if (res.status === 401) {
+    aoPerderSessao();
+    throw new Error("Sessao expirada");
+  }
+  return res;
+}
+
+/* Devolve so "chave -> hora da ultima alteracao" das chaves que a tela esta
+   usando: uns poucos bytes. E o que deixa o app perceber mudanca feita no
+   outro aparelho sem ficar baixando ficha de aluno atras de ficha. */
+async function storageMudancas(chaves) {
+  if (!chaves || !chaves.length) return {};
+  const lista = encodeURIComponent(chaves.join(","));
+  const res = await chamarApi(`${API_BASE}?action=changes&keys=${lista}`);
+  if (!res.ok) throw new Error("Falha ao consultar mudancas");
+  return (await res.json()).mudancas || {};
+}
 async function storageGet(key) {
-  const res = await fetch(`${API_BASE}?action=get&key=${encodeURIComponent(key)}`);
+  const res = await chamarApi(`${API_BASE}?action=get&key=${encodeURIComponent(key)}`);
   if (!res.ok) throw new Error("Falha ao ler dado (" + res.status + ")");
   const data = await res.json();
   return data; // já vem como { value } ou null, igual ao mock
 }
+const escritasLocais = new Map(); // chave -> quando ESTE aparelho gravou
+
+function marcarEscritaLocal(key) {
+  escritasLocais.set(key, Date.now());
+}
+
+/* Consome a marca: se a mudanca que a sondagem viu e a gravacao que este
+   proprio aparelho acabou de fazer, nao ha nada pra avisar. */
+function foiEsteAparelho(key) {
+  const quando = escritasLocais.get(key);
+  if (quando === undefined) return false;
+  escritasLocais.delete(key);
+  return Date.now() - quando < 20000;
+}
 async function storageSet(key, value) {
-  const res = await fetch(`${API_BASE}?action=set`, {
+  marcarEscritaLocal(key);
+  const res = await chamarApi(`${API_BASE}?action=set`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -286,7 +385,8 @@ async function storageSet(key, value) {
   return true;
 }
 async function storageDelete(key) {
-  const res = await fetch(`${API_BASE}?action=delete`, {
+  marcarEscritaLocal(key);
+  const res = await chamarApi(`${API_BASE}?action=delete`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -595,11 +695,9 @@ function Lightbox({
 }
 
 /* ---------------------------------------------------------------- */
-/* Loading + Login (cortina de acesso, sem segurança real)            */
+/* Loading + Login (conferido no servidor, via /api/auth.php)         */
 /* ---------------------------------------------------------------- */
 
-const SENHA_PROFESSOR = "Prof@2026";
-const SENHA_ADMIN = "Coliseu@Adm2026";
 const PIANO_BG = "radial-gradient(circle at 30% 20%, #2b2b2e 0%, #141416 45%, #050505 100%)";
 function PianoBackground({
   children,
@@ -676,17 +774,23 @@ function LoginBox({
   tipo,
   titulo,
   Icon,
-  senhaCorreta,
   onEntrar
 }) {
   const [senha, setSenha] = useState("");
-  const [erro, setErro] = useState(false);
-  function tentarEntrar() {
-    if (senha === senhaCorreta) {
-      setErro(false);
+  const [erro, setErro] = useState("");
+  const [entrando, setEntrando] = useState(false);
+  async function tentarEntrar() {
+    if (entrando || !senha) return;
+    setEntrando(true);
+    setErro("");
+    try {
+      await entrarNaApi(tipo, senha);
+      setSenha("");
       onEntrar();
-    } else {
-      setErro(true);
+    } catch (e) {
+      setErro(e.message || "Senha incorreta.");
+    } finally {
+      setEntrando(false);
     }
   }
   return /*#__PURE__*/React.createElement("div", {
@@ -717,7 +821,7 @@ function LoginBox({
     value: senha,
     onChange: e => {
       setSenha(e.target.value);
-      setErro(false);
+      setErro("");
     },
     onKeyDown: e => {
       if (e.key === "Enter") tentarEntrar();
@@ -726,13 +830,14 @@ function LoginBox({
     className: "w-full rounded-md pl-9 pr-3 py-2 text-sm bg-black/40 text-stone-100 border border-stone-700 focus:outline-none focus:border-stone-400 placeholder:text-stone-500"
   })), erro ? /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-rose-400 mb-2 self-start"
-  }, "Senha incorreta.") : null, /*#__PURE__*/React.createElement("button", {
+  }, erro) : null, /*#__PURE__*/React.createElement("button", {
     onClick: tentarEntrar,
-    className: "w-full mt-1 py-2 rounded-md text-sm font-medium text-stone-900 hover:opacity-90",
+    disabled: entrando,
+    className: "w-full mt-1 py-2 rounded-md text-sm font-medium text-stone-900 hover:opacity-90 disabled:opacity-60",
     style: {
       background: "linear-gradient(160deg, #f4f4f5 0%, #d4d4d8 100%)"
     }
-  }, "Entrar"));
+  }, entrando ? "Entrando..." : "Entrar"));
 }
 function LoginGate({
   onLogin
@@ -747,13 +852,11 @@ function LoginGate({
     tipo: "professor",
     titulo: "PROFESSORES",
     Icon: GraduationCap,
-    senhaCorreta: SENHA_PROFESSOR,
     onEntrar: () => onLogin("professor")
   }), /*#__PURE__*/React.createElement(LoginBox, {
     tipo: "admin",
     titulo: "ADMINISTRA\xC7\xC3O",
     Icon: ShieldCheck,
-    senhaCorreta: SENHA_ADMIN,
     onEntrar: () => onLogin("admin")
   })));
 }
@@ -1836,6 +1939,8 @@ const TABS = [{
 function FichaAluno({
   alunoId,
   role,
+  mudouFora,
+  aoSincronizarFicha,
   getAluno,
   salvarAluno,
   excluirAluno,
@@ -1853,6 +1958,7 @@ function FichaAluno({
     const reg = await getAluno(alunoId);
     setAluno(reg);
     setAtualizando(false);
+    if (aoSincronizarFicha) aoSincronizarFicha();
   }
   useEffect(() => {
     let ativo = true;
@@ -1899,6 +2005,22 @@ function FichaAluno({
       className: "animate-spin"
     }), " Carregando ficha...");
   }
+
+  // Alteracao vinda do outro aparelho. Nao recarrega sozinho de proposito:
+  // se houver edicao em andamento nesta tela, recarregar apagaria o que a
+  // pessoa digitou. Quem decide e quem esta na frente da tela.
+  const avisoMudouFora = mudouFora ? /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start gap-2 border rounded-md px-3 py-2 text-sm mb-4 bg-sky-50 border-sky-200 text-sky-800"
+  }, /*#__PURE__*/React.createElement(AlertCircle, {
+    size: 16,
+    className: "mt-0.5 shrink-0"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "flex-1"
+  }, "Esta ficha foi alterada em outro aparelho."), /*#__PURE__*/React.createElement("button", {
+    onClick: carregarAluno,
+    disabled: atualizando,
+    className: "shrink-0 underline font-medium hover:opacity-80 disabled:opacity-60"
+  }, atualizando ? "Atualizando..." : "Ver a versão nova")) : null;
   if (!aluno) {
     return /*#__PURE__*/React.createElement("div", {
       className: "text-center py-16 text-stone-400"
@@ -1938,7 +2060,7 @@ function FichaAluno({
     className: "flex items-center gap-1 text-xs text-rose-600 hover:bg-rose-50 px-2.5 py-1.5 rounded-md"
   }, /*#__PURE__*/React.createElement(Trash2, {
     size: 13
-  }), " Excluir aluno") : null), erro ? /*#__PURE__*/React.createElement(Banner, {
+  }), " Excluir aluno") : null), avisoMudouFora, erro ? /*#__PURE__*/React.createElement(Banner, {
     onClose: () => setErro("")
   }, erro) : null, sucesso ? /*#__PURE__*/React.createElement(Banner, {
     kind: "ok"
@@ -3591,8 +3713,9 @@ function ObservacoesTab({
 
 /* ===== 18-app.jsx ===== */
 function App() {
-  const [stage, setStage] = useState("loading"); // loading -> login -> app
-  const [role, setRole] = useState(null); // "professor" | "admin"
+  // Quem ja entrou antes volta direto: o token no navegador vale 12h.
+  const [stage, setStage] = useState(tokenSalvo() ? "app" : "loading"); // loading -> login -> app
+  const [role, setRole] = useState(tokenSalvo() ? perfilSalvo() || "professor" : null);
   const [index, setIndex] = useState([]);
   const [loadingIndex, setLoadingIndex] = useState(true);
   const [view, setView] = useState("lista");
@@ -3602,34 +3725,140 @@ function App() {
   const [exportando, setExportando] = useState(false);
   const [lixeira, setLixeira] = useState([]);
   const [ultimoBackupEm, setUltimoBackupEm] = useState(null);
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await storageGet(INDEX_KEY);
-        setIndex(res ? JSON.parse(res.value) : []);
-      } catch (e) {
-        setIndex([]);
-      } finally {
-        setLoadingIndex(false);
-      }
-    })();
-    (async () => {
-      try {
-        const res = await storageGet(LIXEIRA_KEY);
-        setLixeira(res ? JSON.parse(res.value) : []);
-      } catch (e) {
-        setLixeira([]);
-      }
-    })();
-    (async () => {
-      try {
-        const res = await storageGet(ULTIMO_BACKUP_KEY);
-        setUltimoBackupEm(res ? res.value : null);
-      } catch (e) {
-        setUltimoBackupEm(null);
-      }
-    })();
+
+  // Rebusca a lista, a lixeira e a data do ultimo backup. Serve tanto pra
+  // carga inicial quanto pra quando o outro aparelho mexeu em alguma coisa.
+  const recarregarTudo = useCallback(async () => {
+    if (!tokenSalvo()) return;
+    try {
+      const res = await storageGet(INDEX_KEY);
+      setIndex(res ? JSON.parse(res.value) : []);
+    } catch (e) {
+      setIndex([]);
+    } finally {
+      setLoadingIndex(false);
+    }
+    try {
+      const res = await storageGet(LIXEIRA_KEY);
+      setLixeira(res ? JSON.parse(res.value) : []);
+    } catch (e) {
+      setLixeira([]);
+    }
+    try {
+      const res = await storageGet(ULTIMO_BACKUP_KEY);
+      setUltimoBackupEm(res ? res.value : null);
+    } catch (e) {
+      setUltimoBackupEm(null);
+    }
   }, []);
+
+  // So depois de entrar. Antes esse efeito rodava na montagem, o que hoje
+  // daria 401 antes mesmo de existir login.
+  useEffect(() => {
+    if (stage !== "app") return;
+    recarregarTudo();
+  }, [stage, recarregarTudo]);
+
+  // Token vencido (ou apagado) devolve pra tela de login.
+  useEffect(() => {
+    const aoExpirar = () => {
+      setRole(null);
+      setStage("login");
+      setView("lista");
+      setAlunoAtivo(null);
+      setErroGlobal("Sua sessao expirou. Entre de novo.");
+    };
+    window.addEventListener(EVENTO_SESSAO, aoExpirar);
+    return () => window.removeEventListener(EVENTO_SESSAO, aoExpirar);
+  }, []);
+
+  /* ---------------------------------------------------------------- */
+  /* Sincronismo entre aparelhos                                       */
+  /*                                                                   */
+  /* O app abre no PC e no celular ao mesmo tempo. Antes, cada um so    */
+  /* lia os dados uma vez, na abertura: quem estava com a tela aberta   */
+  /* nao ficava sabendo de nada que o outro fizesse.                    */
+  /*                                                                   */
+  /* Aqui a sondagem pergunta so "o que mudou e quando" (uns poucos     */
+  /* bytes, sem trazer ficha nenhuma) e o app rebusca apenas o que de   */
+  /* fato mudou.                                                        */
+  /*                                                                   */
+  /* A lista e a lixeira podem ser recarregadas na hora, porque nao tem */
+  /* nada digitado dentro delas pra perder. A ficha aberta NAO: ela     */
+  /* pode estar no meio de uma edicao, entao so avisa e deixa a decisao */
+  /* de recarregar com quem esta na frente da tela.                     */
+  /* ---------------------------------------------------------------- */
+  const [fichaMudouFora, setFichaMudouFora] = useState(false);
+  const fotoMudancas = useRef(null);
+  const sondando = useRef(false);
+  const alunoAbertoRef = useRef(null);
+  alunoAbertoRef.current = view === "ficha" ? alunoAtivo : null;
+  const verificarMudancas = useCallback(async () => {
+    if (!tokenSalvo() || sondando.current) return;
+    sondando.current = true;
+    // so as chaves que estao na tela agora
+    const aberto = alunoAbertoRef.current;
+    const chaves = [INDEX_KEY, LIXEIRA_KEY, ULTIMO_BACKUP_KEY];
+    if (aberto) chaves.push("aluno:" + aberto);
+    let mapa;
+    try {
+      mapa = await storageMudancas(chaves);
+    } catch (e) {
+      return; // rede caiu, wi-fi trocou: a proxima rodada tenta de novo
+    } finally {
+      sondando.current = false;
+    }
+    const antes = fotoMudancas.current;
+    fotoMudancas.current = {
+      mapa,
+      chaves
+    };
+    if (!antes) return; // a primeira rodada so tira a foto inicial
+
+    // Chave que entrou agora na conta (abriu outro aluno) nao "mudou" -- e a
+    // primeira vez que olhamos pra ela. Sem isso, todo aluno aberto ja
+    // apareceria com o aviso de alterado em outro aparelho.
+    const mudou = k => antes.chaves.includes(k) && antes.mapa[k] !== mapa[k] && !foiEsteAparelho(k);
+    if (mudou(INDEX_KEY) || mudou(LIXEIRA_KEY) || mudou(ULTIMO_BACKUP_KEY)) {
+      recarregarTudo();
+    }
+    if (aberto && mudou("aluno:" + aberto)) setFichaMudouFora(true);
+  }, [recarregarTudo]);
+  useEffect(() => {
+    setFichaMudouFora(false);
+  }, [alunoAtivo, view]);
+  useEffect(() => {
+    if (stage !== "app") return;
+    let timer = null;
+    const agendar = () => {
+      clearTimeout(timer);
+      // parado em segundo plano: celular com a tela apagada nao fica
+      // gastando dados nem bateria consultando a toa
+      if (document.visibilityState !== "visible") return;
+      timer = setTimeout(async () => {
+        await verificarMudancas();
+        agendar();
+      }, 5000);
+    };
+    let ultimoAcordar = 0;
+    const aoVoltar = () => {
+      if (document.visibilityState !== "visible") return;
+      const agora = Date.now();
+      if (agora - ultimoAcordar < 3000) return; // trocar de aba nao vira enxurrada
+      ultimoAcordar = agora;
+      verificarMudancas().then(agendar);
+    };
+    verificarMudancas().then(agendar);
+    document.addEventListener("visibilitychange", aoVoltar);
+    window.addEventListener("online", aoVoltar);
+    window.addEventListener("focus", aoVoltar);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", aoVoltar);
+      window.removeEventListener("online", aoVoltar);
+      window.removeEventListener("focus", aoVoltar);
+    };
+  }, [stage, verificarMudancas]);
 
   // Quantos dias completos se passaram desde o último backup exportado
   // (ou null se nunca foi feito nenhum backup ainda).
@@ -4006,6 +4235,7 @@ function App() {
     size: 12
   }), role === "admin" ? "Administração" : "Professor"), /*#__PURE__*/React.createElement("button", {
     onClick: () => {
+      guardarToken("");
       setRole(null);
       setStage("login");
       setView("lista");
@@ -4052,6 +4282,8 @@ function App() {
   }) : /*#__PURE__*/React.createElement(FichaAluno, {
     alunoId: alunoAtivo,
     role: role,
+    mudouFora: fichaMudouFora,
+    aoSincronizarFicha: () => setFichaMudouFora(false),
     getAluno: getAluno,
     salvarAluno: salvarAluno,
     excluirAluno: excluirAluno,
