@@ -15,10 +15,28 @@ COPY dist/icon-192.png /var/www/html/icon-192.png
 COPY dist/icon-512.png /var/www/html/icon-512.png
 COPY dist/api          /var/www/html/api
 
+# Cabecalhos de seguranca. Sao so de resposta -- nao mudam o que o app faz,
+# mudam o que o navegador PERMITE fazer com ele:
+#   X-Frame-Options   impede que o sistema seja aberto dentro de um iframe
+#                     num site de terceiro (golpe de clique disfarcado, onde
+#                     a vitima acha que clica num lugar e clica noutro).
+#   nosniff           impede o navegador de "adivinhar" o tipo de um arquivo
+#                     e acabar executando como script algo que nao e.
+#   Referrer-Policy   evita vazar o endereco interno (com id de aluno) pra
+#                     sites de fora quando alguem clica num link de saida.
+#   HSTS              o navegador passa a recusar http nesse dominio por um
+#                     ano, mesmo que alguem force. So faz sentido porque o
+#                     https ja esta no ar com certificado renovado sozinho.
+# Nao coloquei Content-Security-Policy: ela e a unica que pode quebrar a
+# tela, e nao se testa isso as pressas.
 RUN echo 'server { \
     listen 80; \
     root /var/www/html; \
     index index.html; \
+    add_header X-Frame-Options "SAMEORIGIN" always; \
+    add_header X-Content-Type-Options "nosniff" always; \
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always; \
+    add_header Strict-Transport-Security "max-age=31536000" always; \
     location / { try_files $uri $uri/ /index.html; } \
     location ~ \.php$ { \
         fastcgi_pass 127.0.0.1:9000; \
