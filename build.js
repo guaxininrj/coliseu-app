@@ -46,7 +46,15 @@ const Babel = require(babelPath);
 
 let compilado;
 try {
-  compilado = Babel.transform(jsx, { presets: ['react'], sourceType: 'script' }).code;
+  /* runtime: 'classic' -- versoes novas do Babel compilam JSX pro "runtime
+     automatico" por padrao, que gera require("react/jsx-runtime"). Isso
+     quebra no navegador: nao existe empacotador aqui, so os scripts de
+     React vendorizados como variavel global. Classic gera
+     React.createElement(...), que e o que index.html sempre esperou. */
+  compilado = Babel.transform(jsx, {
+    presets: [['react', { runtime: 'classic' }]],
+    sourceType: 'script',
+  }).code;
 } catch (e) {
   err('falha ao compilar o JSX: ' + e.message);
 }

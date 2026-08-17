@@ -7,9 +7,22 @@ $perfil = exigirSessao();
 
 $action = $_GET['action'] ?? '';
 
+/* Chave "professor:*" guarda hash de senha -- so o admin mexe nela, e so
+   pelo api/professores.php, que sabe gerar hash e nunca devolve o valor
+   cru. Sem esta trava, este endpoint generico (get/set sem restricao de
+   chave) deixaria qualquer sessao de professor ler ou reescrever conta de
+   outro professor so sabendo o id -- o mesmo tipo de furo que a sessao
+   obrigatoria no topo deste arquivo ja veio fechar pros alunos. */
+function ehChaveDeProfessor($chave) {
+    return strpos($chave, 'professor:') === 0;
+}
+
 if ($action === 'get') {
     $chave = $_GET['key'] ?? '';
     if ($chave === '') { http_response_code(400); die(json_encode(['erro' => 'key obrigatório'])); }
+    if (ehChaveDeProfessor($chave) && $perfil !== 'admin') {
+        http_response_code(403); die(json_encode(['erro' => 'só a administração acessa isso']));
+    }
 
     // consulta preparada: o real_escape_string de antes funcionava, mas
     // depender de lembrar de escapar e o que gera falha um dia
@@ -50,6 +63,9 @@ if ($action === 'get') {
     $data = json_decode(file_get_contents('php://input'), true);
     if (!$data || !isset($data['key']) || !isset($data['value'])) {
         http_response_code(400); die(json_encode(['erro' => 'key e value obrigatórios']));
+    }
+    if (ehChaveDeProfessor($data['key']) && $perfil !== 'admin') {
+        http_response_code(403); die(json_encode(['erro' => 'só a administração acessa isso']));
     }
 
     $stmt = $conn->prepare(

@@ -1,4 +1,3 @@
-function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 /* ===== 01-icons.jsx ===== */
 
 /* ---------------------------------------------------------------- */
@@ -112,7 +111,7 @@ const _GraficoIndisponivel = () => /*#__PURE__*/React.createElement("div", {
     border: "1px dashed #d6d3d1",
     borderRadius: 8
   }
-}, "Gr\xE1fico indispon\xEDvel");
+}, "Gráfico indisponível");
 const _Noop = () => null;
 
 /* Wrappers que, em cada render, leem o Recharts mais atual (via hook)  */
@@ -267,6 +266,7 @@ function _seedMockData() {
 
 const API_BASE = "/api/storage.php";
 const API_LOGIN = "/api/auth.php";
+const API_PROFESSORES = "/api/professores.php";
 const CHAVE_TOKEN = "coliseu_token";
 
 /* A senha nao mora mais aqui. Ela ficava em duas constantes neste arquivo,
@@ -397,6 +397,74 @@ async function storageDelete(key) {
   });
   if (!res.ok) throw new Error("Falha ao excluir dado (" + res.status + ")");
   return true;
+}
+
+/* ---------------------------------------------------------------- */
+/* Professores -- endpoint proprio (api/professores.php), separado do
+   armazenamento generico de chave/valor: e ele quem sabe gerar o hash da
+   senha, e "listar" nunca devolve o hash pro navegador. */
+async function professoresListar() {
+  const res = await chamarApi(`${API_PROFESSORES}?action=listar`);
+  if (!res.ok) throw new Error("Falha ao listar professores (" + res.status + ")");
+  const dados = await res.json();
+  return dados.professores || [];
+}
+async function professorCriar(nome, senha) {
+  const res = await chamarApi(`${API_PROFESSORES}?action=criar`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      nome,
+      senha
+    })
+  });
+  const dados = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(dados.erro || "Falha ao criar professor");
+  return dados;
+}
+async function professorEditarSenha(id, senha) {
+  const res = await chamarApi(`${API_PROFESSORES}?action=editar`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      id,
+      senha
+    })
+  });
+  const dados = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(dados.erro || "Falha ao editar professor");
+  return dados;
+}
+async function professorExcluir(id) {
+  const res = await chamarApi(`${API_PROFESSORES}?action=excluir`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      id
+    })
+  });
+  const dados = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(dados.erro || "Falha ao excluir professor");
+  return dados;
+}
+
+/* Junta os professores CADASTRADOS com os nomes que ja aparecem em alunos
+   antigos (texto livre, de antes de existir cadastro) -- e mais o valor
+   atual, se for algum nome fora das duas listas. Sem isso, um aluno com
+   professor incomum ficaria com o campo vazio ao abrir o formulario. */
+function professoresParaSelect(cadastrados, index, valorAtual) {
+  const nomes = new Set(cadastrados.map(p => p.nome));
+  (index || []).forEach(a => {
+    if (a.professorResponsavel) nomes.add(a.professorResponsavel);
+  });
+  if (valorAtual) nomes.add(valorAtual);
+  return Array.from(nomes).sort((a, b) => a.localeCompare(b));
 }
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -574,22 +642,25 @@ function Field({
 }
 const inputClass = "w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600";
 function TextInput(props) {
-  return /*#__PURE__*/React.createElement("input", _extends({}, props, {
+  return /*#__PURE__*/React.createElement("input", {
+    ...props,
     className: inputClass + " " + (props.className || "")
-  }));
+  });
 }
 function TextArea(props) {
-  return /*#__PURE__*/React.createElement("textarea", _extends({}, props, {
+  return /*#__PURE__*/React.createElement("textarea", {
+    ...props,
     className: inputClass + " min-h-[88px] " + (props.className || "")
-  }));
+  });
 }
 function Select({
   children,
   ...props
 }) {
-  return /*#__PURE__*/React.createElement("select", _extends({}, props, {
+  return /*#__PURE__*/React.createElement("select", {
+    ...props,
     className: inputClass
-  }), children);
+  }, children);
 }
 function NumberField({
   label,
@@ -855,7 +926,7 @@ function LoginGate({
     onEntrar: () => onLogin("professor")
   }), /*#__PURE__*/React.createElement(LoginBox, {
     tipo: "admin",
-    titulo: "ADMINISTRA\xC7\xC3O",
+    titulo: "ADMINISTRAÇÃO",
     Icon: ShieldCheck,
     onEntrar: () => onLogin("admin")
   })));
@@ -867,10 +938,11 @@ function ListaAlunos({
   loading,
   onAbrir,
   onNovoAluno,
-  onAtualizar
+  onAtualizar,
+  filtroProfessorInicial
 }) {
   const [busca, setBusca] = useState("");
-  const [professorFiltro, setProfessorFiltro] = useState("");
+  const [professorFiltro, setProfessorFiltro] = useState(filtroProfessorInicial || "");
   const [ordenarPor, setOrdenarPor] = useState("nome");
   const professores = Array.from(new Set(index.map(a => a.professorResponsavel).filter(Boolean))).sort();
   let listaFiltrada = index.filter(a => {
@@ -936,11 +1008,11 @@ function ListaAlunos({
     value: "nome"
   }, "Ordenar: Nome (A-Z)"), /*#__PURE__*/React.createElement("option", {
     value: "professor"
-  }, "Ordenar: Professor respons\xE1vel"), /*#__PURE__*/React.createElement("option", {
+  }, "Ordenar: Professor responsável"), /*#__PURE__*/React.createElement("option", {
     value: "avaliacao_recente"
-  }, "Ordenar: \xDAltima avalia\xE7\xE3o (mais recente)"), /*#__PURE__*/React.createElement("option", {
+  }, "Ordenar: Última avaliação (mais recente)"), /*#__PURE__*/React.createElement("option", {
     value: "avaliacao_antiga"
-  }, "Ordenar: \xDAltima avalia\xE7\xE3o (mais antiga)"))), loading ? /*#__PURE__*/React.createElement("div", {
+  }, "Ordenar: Última avaliação (mais antiga)"))), loading ? /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 text-stone-500 text-sm py-10 justify-center"
   }, /*#__PURE__*/React.createElement(Loader2, {
     size: 16,
@@ -962,9 +1034,9 @@ function ListaAlunos({
     className: "text-left px-4 py-2.5 font-semibold"
   }, "Nome"), /*#__PURE__*/React.createElement("th", {
     className: "text-left px-4 py-2.5 font-semibold"
-  }, "Professor respons\xE1vel"), /*#__PURE__*/React.createElement("th", {
+  }, "Professor responsável"), /*#__PURE__*/React.createElement("th", {
     className: "text-left px-4 py-2.5 font-semibold"
-  }, "\xDAltima avalia\xE7\xE3o"), /*#__PURE__*/React.createElement("th", {
+  }, "Última avaliação"), /*#__PURE__*/React.createElement("th", {
     className: "px-4 py-2.5"
   }))), /*#__PURE__*/React.createElement("tbody", null, listaFiltrada.map(a => /*#__PURE__*/React.createElement("tr", {
     key: a.id,
@@ -980,13 +1052,14 @@ function ListaAlunos({
     className: "font-mono text-stone-600"
   }, formatDateBR(a.ultimaAvaliacaoData)) : /*#__PURE__*/React.createElement("span", {
     className: "text-amber-600 text-xs font-medium bg-amber-50 px-2 py-0.5 rounded"
-  }, "sem avalia\xE7\xE3o")), /*#__PURE__*/React.createElement("td", {
+  }, "sem avaliação")), /*#__PURE__*/React.createElement("td", {
     className: "px-4 py-3 text-right text-stone-400"
-  }, "\u203A")))))));
+  }, "›")))))));
 }
 function NovoAlunoModal({
   onCriar,
-  onCancelar
+  onCancelar,
+  professoresOpcoes
 }) {
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -1034,12 +1107,16 @@ function NovoAlunoModal({
     placeholder: "Ex: Maria Silva",
     autoFocus: true
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Professor respons\xE1vel"
-  }, /*#__PURE__*/React.createElement(TextInput, {
+    label: "Professor responsável"
+  }, /*#__PURE__*/React.createElement(Select, {
     value: professor,
-    onChange: e => setProfessor(e.target.value),
-    placeholder: "Ex: Jo\xE3o"
-  })), /*#__PURE__*/React.createElement(Field, {
+    onChange: e => setProfessor(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "— nenhum —"), (professoresOpcoes || []).map(p => /*#__PURE__*/React.createElement("option", {
+    key: p,
+    value: p
+  }, p)))), /*#__PURE__*/React.createElement(Field, {
     label: "Telefone"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: telefone,
@@ -1132,7 +1209,7 @@ function TelaLixeira({
     className: "text-stone-400"
   }), " Lixeira"), /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-stone-500"
-  }, lixeira.length, " aluno(s) exclu\xEDdo(s)")), /*#__PURE__*/React.createElement("button", {
+  }, lixeira.length, " aluno(s) excluído(s)")), /*#__PURE__*/React.createElement("button", {
     onClick: onAtualizar,
     disabled: loading,
     title: "Recarregar lixeira",
@@ -1144,7 +1221,7 @@ function TelaLixeira({
     onClose: () => setErro("")
   }, erro) : null, /*#__PURE__*/React.createElement("div", {
     className: "mb-4 text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-md px-3 py-2"
-  }, "Alunos exclu\xEDdos ficam guardados aqui e podem ser restaurados a qualquer momento.", role === "admin" ? " Administradores também podem excluir definitivamente, o que não pode ser desfeito." : ""), loading ? /*#__PURE__*/React.createElement("div", {
+  }, "Alunos excluídos ficam guardados aqui e podem ser restaurados a qualquer momento.", role === "admin" ? " Administradores também podem excluir definitivamente, o que não pode ser desfeito." : ""), loading ? /*#__PURE__*/React.createElement("div", {
     className: "flex items-center gap-2 text-stone-500 text-sm py-10 justify-center"
   }, /*#__PURE__*/React.createElement(Loader2, {
     size: 16,
@@ -1156,7 +1233,7 @@ function TelaLixeira({
     className: "mx-auto mb-2"
   }), /*#__PURE__*/React.createElement("p", {
     className: "text-sm"
-  }, "A lixeira est\xE1 vazia.")) : /*#__PURE__*/React.createElement("div", {
+  }, "A lixeira está vazia.")) : /*#__PURE__*/React.createElement("div", {
     className: "border border-stone-200 rounded-lg overflow-hidden"
   }, /*#__PURE__*/React.createElement("table", {
     className: "w-full text-sm"
@@ -1166,9 +1243,9 @@ function TelaLixeira({
     className: "text-left px-4 py-2.5 font-semibold"
   }, "Nome"), /*#__PURE__*/React.createElement("th", {
     className: "text-left px-4 py-2.5 font-semibold"
-  }, "Professor respons\xE1vel"), /*#__PURE__*/React.createElement("th", {
+  }, "Professor responsável"), /*#__PURE__*/React.createElement("th", {
     className: "text-left px-4 py-2.5 font-semibold"
-  }, "Exclu\xEDdo em"), /*#__PURE__*/React.createElement("th", {
+  }, "Excluído em"), /*#__PURE__*/React.createElement("th", {
     className: "px-4 py-2.5"
   }))), /*#__PURE__*/React.createElement("tbody", null, listaOrdenada.map(a => /*#__PURE__*/React.createElement("tr", {
     key: a.id,
@@ -1195,7 +1272,7 @@ function TelaLixeira({
   }), "Restaurar"), role === "admin" ? /*#__PURE__*/React.createElement("button", {
     onClick: () => setConfirmandoPermanenteId(a.id),
     disabled: excluindoPermanenteId === a.id,
-    title: "Excluir definitivamente (n\xE3o pode ser desfeito)",
+    title: "Excluir definitivamente (não pode ser desfeito)",
     className: "flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-50"
   }, excluindoPermanenteId === a.id ? /*#__PURE__*/React.createElement(Loader2, {
     size: 12,
@@ -1204,10 +1281,290 @@ function TelaLixeira({
     size: 12
   }), "Excluir definitivamente") : null))))))), confirmandoPermanenteId ? /*#__PURE__*/React.createElement(ConfirmModal, {
     title: "Excluir definitivamente",
-    message: "Esta a\xE7\xE3o n\xE3o pode ser desfeita. Todos os dados deste aluno (cadastro, anamnese, avalia\xE7\xF5es, treino) ser\xE3o apagados para sempre. Tem certeza?",
+    message: "Esta ação não pode ser desfeita. Todos os dados deste aluno (cadastro, anamnese, avaliações, treino) serão apagados para sempre. Tem certeza?",
     confirmLabel: "Excluir para sempre",
     onCancel: () => setConfirmandoPermanenteId(null),
     onConfirm: () => handleExcluirPermanente(confirmandoPermanenteId)
+  }) : null);
+}
+
+/* ===== 07b-professores.jsx ===== */
+/* ---------------------------------------------------------------- */
+/* Professores -- cada um tem conta propria (nome + senha escolhida  */
+/* pelo admin no cadastro). Antes era uma senha unica compartilhada  */
+/* por todos; agora da pra tirar o acesso de um so, sem mexer nos    */
+/* outros, e clicando num professor da lista de pra ver os alunos    */
+/* dele.                                                              */
+/* ---------------------------------------------------------------- */
+
+function ProfessorFormModal({
+  titulo,
+  nomeInicial,
+  nomeTravado,
+  onSalvar,
+  onCancelar
+}) {
+  const [nome, setNome] = useState(nomeInicial || "");
+  const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  async function handleSalvar() {
+    if (!nomeTravado && !nome.trim()) {
+      setErro("Informe o nome do professor.");
+      return;
+    }
+    if (senha.length < 4) {
+      setErro("A senha precisa de pelo menos 4 caracteres.");
+      return;
+    }
+    setErro("");
+    setSalvando(true);
+    try {
+      await onSalvar({
+        nome: nome.trim(),
+        senha
+      });
+    } catch (e) {
+      setErro(e && e.message || "Não foi possível salvar.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-stone-900/40 flex items-center justify-center z-50 p-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg shadow-xl max-w-md w-full p-6"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-4"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-bold text-stone-800 text-lg",
+    style: {
+      fontFamily: SANS
+    }
+  }, titulo), /*#__PURE__*/React.createElement("button", {
+    onClick: onCancelar,
+    className: "text-stone-400 hover:text-stone-600"
+  }, /*#__PURE__*/React.createElement(X, {
+    size: 18
+  }))), erro ? /*#__PURE__*/React.createElement(Banner, {
+    onClose: () => setErro("")
+  }, erro) : null, /*#__PURE__*/React.createElement(Field, {
+    label: "Nome do professor"
+  }, nomeTravado ? /*#__PURE__*/React.createElement("div", {
+    className: "px-3 py-2 rounded-md bg-stone-100 text-stone-700 text-sm"
+  }, nome) : /*#__PURE__*/React.createElement(TextInput, {
+    value: nome,
+    onChange: e => setNome(e.target.value),
+    placeholder: "Ex: João Silva",
+    autoFocus: true
+  })), /*#__PURE__*/React.createElement(Field, {
+    label: nomeTravado ? "Nova senha" : "Senha",
+    hint: nomeTravado ? "Pelo menos 4 caracteres." : "O professor vai usar esta senha pra entrar. Pelo menos 4 caracteres."
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "relative"
+  }, /*#__PURE__*/React.createElement(Lock, {
+    size: 14,
+    className: "absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
+  }), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: senha,
+    onChange: e => setSenha(e.target.value),
+    placeholder: "Ex: 48213",
+    className: inputClass + " pl-9",
+    autoFocus: nomeTravado
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-end gap-2 mt-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onCancelar,
+    className: "px-3 py-2 text-sm rounded-md text-stone-600 hover:bg-stone-100"
+  }, "Cancelar"), /*#__PURE__*/React.createElement("button", {
+    onClick: handleSalvar,
+    disabled: salvando,
+    className: "flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-60"
+  }, salvando ? /*#__PURE__*/React.createElement(Loader2, {
+    size: 14,
+    className: "animate-spin"
+  }) : /*#__PURE__*/React.createElement(Save, {
+    size: 14
+  }), nomeTravado ? "Salvar senha" : "Cadastrar"))));
+}
+function TelaProfessores({
+  index,
+  onVoltar,
+  onVerAlunos
+}) {
+  const [professores, setProfessores] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState("");
+  const [mostrarNovo, setMostrarNovo] = useState(false);
+  const [editando, setEditando] = useState(null); // {id, nome} ou null
+  const [confirmandoExcluirId, setConfirmandoExcluirId] = useState(null);
+  const [excluindoId, setExcluindoId] = useState(null);
+  async function carregar() {
+    setLoading(true);
+    setErro("");
+    try {
+      setProfessores(await professoresListar());
+    } catch (e) {
+      setErro(e && e.message || "Não foi possível carregar os professores.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    carregar();
+  }, []);
+  function contarAlunos(nome) {
+    return index.filter(a => a.professorResponsavel === nome).length;
+  }
+  async function handleCriar({
+    nome,
+    senha
+  }) {
+    await professorCriar(nome, senha);
+    setMostrarNovo(false);
+    await carregar();
+  }
+  async function handleEditar({
+    senha
+  }) {
+    await professorEditarSenha(editando.id, senha);
+    setEditando(null);
+    await carregar();
+  }
+  async function handleExcluir(id) {
+    setErro("");
+    setExcluindoId(id);
+    try {
+      await professorExcluir(id);
+      setConfirmandoExcluirId(null);
+      await carregar();
+    } catch (e) {
+      setErro(e && e.message || "Não foi possível excluir este professor.");
+    } finally {
+      setExcluindoId(null);
+    }
+  }
+  function formatarData(iso) {
+    if (!iso) return "—";
+    try {
+      return new Date(iso).toLocaleDateString("pt-BR");
+    } catch (e) {
+      return "—";
+    }
+  }
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-5"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("button", {
+    onClick: onVoltar,
+    className: "flex items-center gap-1 text-sm text-stone-500 hover:text-stone-700 mb-1"
+  }, /*#__PURE__*/React.createElement(ChevronLeft, {
+    size: 15
+  }), " Voltar para alunos"), /*#__PURE__*/React.createElement("h1", {
+    className: "text-2xl font-bold text-stone-800 flex items-center gap-2",
+    style: {
+      fontFamily: SANS
+    }
+  }, /*#__PURE__*/React.createElement(Users, {
+    size: 20,
+    className: "text-stone-400"
+  }), " Professores"), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-stone-500"
+  }, professores.length, " cadastrado(s)")), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: carregar,
+    disabled: loading,
+    title: "Recarregar",
+    className: "flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium border border-stone-300 text-stone-600 hover:bg-stone-100 disabled:opacity-50"
+  }, /*#__PURE__*/React.createElement(RefreshCw, {
+    size: 14,
+    className: loading ? "animate-spin" : ""
+  }), "Atualizar"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setMostrarNovo(true),
+    className: "flex items-center gap-1.5 bg-emerald-700 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-emerald-800"
+  }, /*#__PURE__*/React.createElement(Plus, {
+    size: 16
+  }), " Novo professor"))), erro ? /*#__PURE__*/React.createElement(Banner, {
+    onClose: () => setErro("")
+  }, erro) : null, /*#__PURE__*/React.createElement("div", {
+    className: "mb-4 text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-md px-3 py-2"
+  }, "Cada professor entra com a própria senha, na tela inicial. Clique num professor pra ver os alunos dele."), loading ? /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 text-stone-500 text-sm py-10 justify-center"
+  }, /*#__PURE__*/React.createElement(Loader2, {
+    size: 16,
+    className: "animate-spin"
+  }), " Carregando professores...") : professores.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "text-center py-16 text-stone-400 border border-dashed border-stone-300 rounded-lg"
+  }, /*#__PURE__*/React.createElement(Users, {
+    size: 28,
+    className: "mx-auto mb-2"
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm"
+  }, "Nenhum professor cadastrado ainda.")) : /*#__PURE__*/React.createElement("div", {
+    className: "border border-stone-200 rounded-lg overflow-hidden"
+  }, /*#__PURE__*/React.createElement("table", {
+    className: "w-full text-sm"
+  }, /*#__PURE__*/React.createElement("thead", {
+    className: "bg-stone-50 text-stone-500 text-xs uppercase tracking-wide"
+  }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+    className: "text-left px-4 py-2.5 font-semibold"
+  }, "Nome"), /*#__PURE__*/React.createElement("th", {
+    className: "text-left px-4 py-2.5 font-semibold"
+  }, "Alunos"), /*#__PURE__*/React.createElement("th", {
+    className: "text-left px-4 py-2.5 font-semibold"
+  }, "Cadastrado em"), /*#__PURE__*/React.createElement("th", {
+    className: "px-4 py-2.5"
+  }))), /*#__PURE__*/React.createElement("tbody", null, professores.map(p => /*#__PURE__*/React.createElement("tr", {
+    key: p.id,
+    className: "border-t border-stone-100 hover:bg-stone-50"
+  }, /*#__PURE__*/React.createElement("td", {
+    className: "px-4 py-3"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => onVerAlunos(p.nome),
+    className: "font-medium text-stone-800 hover:text-emerald-700 hover:underline text-left",
+    title: "Ver alunos deste professor"
+  }, p.nome)), /*#__PURE__*/React.createElement("td", {
+    className: "px-4 py-3 text-stone-600"
+  }, contarAlunos(p.nome)), /*#__PURE__*/React.createElement("td", {
+    className: "px-4 py-3 text-stone-500 font-mono text-xs"
+  }, formatarData(p.criadoEm)), /*#__PURE__*/React.createElement("td", {
+    className: "px-4 py-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-end gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setEditando({
+      id: p.id,
+      nome: p.nome
+    }),
+    className: "flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-stone-300 text-stone-600 hover:bg-stone-100"
+  }, /*#__PURE__*/React.createElement(Pencil, {
+    size: 12
+  }), " Editar"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setConfirmandoExcluirId(p.id),
+    disabled: excluindoId === p.id,
+    className: "flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+  }, excluindoId === p.id ? /*#__PURE__*/React.createElement(Loader2, {
+    size: 12,
+    className: "animate-spin"
+  }) : /*#__PURE__*/React.createElement(Trash2, {
+    size: 12
+  }), "Excluir")))))))), mostrarNovo ? /*#__PURE__*/React.createElement(ProfessorFormModal, {
+    titulo: "Novo professor",
+    onSalvar: handleCriar,
+    onCancelar: () => setMostrarNovo(false)
+  }) : null, editando ? /*#__PURE__*/React.createElement(ProfessorFormModal, {
+    titulo: "Editar senha — " + editando.nome,
+    nomeInicial: editando.nome,
+    nomeTravado: true,
+    onSalvar: handleEditar,
+    onCancelar: () => setEditando(null)
+  }) : null, confirmandoExcluirId ? /*#__PURE__*/React.createElement(ConfirmModal, {
+    title: "Excluir professor",
+    message: "O professor perde o acesso ao sistema. Os alunos que já apontam pro nome dele continuam com o cadastro intacto, só sem professor logado com esse nome. Esta ação não pode ser desfeita.",
+    confirmLabel: "Excluir professor",
+    onCancel: () => setConfirmandoExcluirId(null),
+    onConfirm: () => handleExcluir(confirmandoExcluirId)
   }) : null);
 }
 
@@ -1480,12 +1837,12 @@ function TreinoTab({
     }, "Escolha o modelo de treino para este aluno.")), /*#__PURE__*/React.createElement("div", {
       className: "flex flex-col sm:flex-row gap-3"
     }, /*#__PURE__*/React.createElement(ModeloCard, {
-      titulo: "Muscula\xE7\xE3o",
-      descricao: "Treino dividido por grupos musculares. Ideal para hipertrofia e periodiza\xE7\xE3o cl\xE1ssica.",
+      titulo: "Musculação",
+      descricao: "Treino dividido por grupos musculares. Ideal para hipertrofia e periodização clássica.",
       onClick: () => escolherModelo("musculacao")
     }), /*#__PURE__*/React.createElement(ModeloCard, {
       titulo: "Metodologia Coliseu",
-      descricao: "Treino organizado por padr\xF5es de movimento e capacidades f\xEDsicas.",
+      descricao: "Treino organizado por padrões de movimento e capacidades físicas.",
       onClick: () => escolherModelo("coliseu"),
       destaque: true
     })));
@@ -1634,7 +1991,7 @@ function TreinoTab({
     onToggle: toggleDiaAberto
   }), confirmTrocar && /*#__PURE__*/React.createElement(ConfirmModal, {
     title: "Trocar modelo de treino",
-    message: "Ao trocar o modelo, todos os exerc\xEDcios cadastrados ser\xE3o apagados. Deseja continuar?",
+    message: "Ao trocar o modelo, todos os exercícios cadastrados serão apagados. Deseja continuar?",
     confirmLabel: "Trocar e apagar",
     onCancel: () => setConfirmTrocar(false),
     onConfirm: () => {
@@ -1685,7 +2042,7 @@ function TreinoResumo({
       className: "text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100"
     }, t)) : /*#__PURE__*/React.createElement("span", {
       className: "text-xs text-stone-400"
-    }, "Sem exerc\xEDcios")), /*#__PURE__*/React.createElement("div", {
+    }, "Sem exercícios")), /*#__PURE__*/React.createElement("div", {
       className: "flex items-center gap-2 shrink-0"
     }, /*#__PURE__*/React.createElement("span", {
       className: "text-xs text-stone-400"
@@ -1700,7 +2057,7 @@ function TreinoResumo({
       className: "border-t border-stone-100 divide-y divide-stone-100"
     }, d.exercicios.length === 0 ? /*#__PURE__*/React.createElement("p", {
       className: "text-xs text-stone-400 text-center py-6"
-    }, "Nenhum exerc\xEDcio ainda.") : d.exercicios.map(ex => {
+    }, "Nenhum exercício ainda.") : d.exercicios.map(ex => {
       const categoria = modelo === "coliseu" ? [ex.padrao, ex.capacidade].filter(Boolean).join(" · ") : ex.grupo;
       const detalhes = [ex.series ? `${ex.series} séries` : null, ex.reps ? `${ex.reps} reps` : null, ex.carga ? `${ex.carga} carga` : null, ex.intervalo ? `${ex.intervalo} intervalo` : null].filter(Boolean).join("  ·  ");
       return /*#__PURE__*/React.createElement("div", {
@@ -1764,9 +2121,9 @@ function DiaTreino({
     className: "flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-md border border-emerald-200"
   }, /*#__PURE__*/React.createElement(Plus, {
     size: 12
-  }), " Exerc\xEDcio")), diaObj.exercicios.length === 0 ? /*#__PURE__*/React.createElement("p", {
+  }), " Exercício")), diaObj.exercicios.length === 0 ? /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-stone-400 text-center py-6"
-  }, "Nenhum exerc\xEDcio ainda.") : /*#__PURE__*/React.createElement("div", {
+  }, "Nenhum exercício ainda.") : /*#__PURE__*/React.createElement("div", {
     className: "divide-y divide-stone-100"
   }, diaObj.exercicios.map((ex, idx) => /*#__PURE__*/React.createElement(ExercicioForm, {
     key: ex.id,
@@ -1830,7 +2187,7 @@ function ExercicioForm({
   }, "Selecionar..."), GRUPOS_MUSCULARES.map(g => /*#__PURE__*/React.createElement("option", {
     key: g
   }, g)))), /*#__PURE__*/React.createElement(CampoEx, {
-    label: "Exerc\xEDcio"
+    label: "Exercício"
   }, /*#__PURE__*/React.createElement("input", {
     className: inputCls,
     placeholder: "Ex: Supino reto",
@@ -1842,7 +2199,7 @@ function ExercicioForm({
   React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 gap-3 mb-3"
   }, /*#__PURE__*/React.createElement(CampoEx, {
-    label: "Padr\xE3o de movimento"
+    label: "Padrão de movimento"
   }, /*#__PURE__*/React.createElement("select", {
     className: selectCls,
     value: ex.padrao,
@@ -1852,7 +2209,7 @@ function ExercicioForm({
   }, "Selecionar..."), PADROES_MOVIMENTO.map(p => /*#__PURE__*/React.createElement("option", {
     key: p
   }, p)))), /*#__PURE__*/React.createElement(CampoEx, {
-    label: "Capacidade f\xEDsica"
+    label: "Capacidade física"
   }, /*#__PURE__*/React.createElement("select", {
     className: selectCls,
     value: ex.capacidade,
@@ -1864,16 +2221,16 @@ function ExercicioForm({
   }, c))))), /*#__PURE__*/React.createElement("div", {
     className: "mb-3"
   }, /*#__PURE__*/React.createElement(CampoEx, {
-    label: "Exerc\xEDcio"
+    label: "Exercício"
   }, /*#__PURE__*/React.createElement("input", {
     className: inputCls,
-    placeholder: "Ex: Agachamento b\xFAlgaro",
+    placeholder: "Ex: Agachamento búlgaro",
     value: ex.nome,
     onChange: e => onChange("nome", e.target.value)
   })))), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-4 gap-2 mb-3"
   }, /*#__PURE__*/React.createElement(CampoEx, {
-    label: "S\xE9ries"
+    label: "Séries"
   }, /*#__PURE__*/React.createElement("input", {
     className: inputCls,
     placeholder: "4",
@@ -1901,7 +2258,7 @@ function ExercicioForm({
     value: ex.intervalo,
     onChange: e => onChange("intervalo", e.target.value)
   }))), /*#__PURE__*/React.createElement(CampoEx, {
-    label: "Observa\xE7\xF5es"
+    label: "Observações"
   }, /*#__PURE__*/React.createElement("input", {
     className: inputCls,
     placeholder: modelo === "musculacao" ? "Ex: Pegada fechada, descer controlado..." : "Ex: Explosão na subida, 3s descendo...",
@@ -1944,7 +2301,8 @@ function FichaAluno({
   getAluno,
   salvarAluno,
   excluirAluno,
-  onVoltar
+  onVoltar,
+  professoresOpcoes
 }) {
   const [aluno, setAluno] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2024,7 +2382,7 @@ function FichaAluno({
   if (!aluno) {
     return /*#__PURE__*/React.createElement("div", {
       className: "text-center py-16 text-stone-400"
-    }, /*#__PURE__*/React.createElement("p", null, "N\xE3o foi poss\xEDvel carregar este aluno."), /*#__PURE__*/React.createElement("button", {
+    }, /*#__PURE__*/React.createElement("p", null, "Não foi possível carregar este aluno."), /*#__PURE__*/React.createElement("button", {
       onClick: onVoltar,
       className: "text-emerald-700 underline text-sm mt-2"
     }, "Voltar para a lista"));
@@ -2055,7 +2413,7 @@ function FichaAluno({
     }
   }, aluno.nome), /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-stone-500"
-  }, "Professor: ", aluno.professorResponsavel || "—", " \xB7 Cadastrado em ", formatDateBR(aluno.dataCadastro))), role === "admin" ? /*#__PURE__*/React.createElement("button", {
+  }, "Professor: ", aluno.professorResponsavel || "—", " · Cadastrado em ", formatDateBR(aluno.dataCadastro))), role === "admin" ? /*#__PURE__*/React.createElement("button", {
     onClick: () => setConfirmandoExclusao(true),
     className: "flex items-center gap-1 text-xs text-rose-600 hover:bg-rose-50 px-2.5 py-1.5 rounded-md"
   }, /*#__PURE__*/React.createElement(Trash2, {
@@ -2083,7 +2441,8 @@ function FichaAluno({
     }), " ", t.label);
   })), tab === "cadastro" && /*#__PURE__*/React.createElement(CadastroTab, {
     aluno: aluno,
-    onSalvar: r => persistir(r, "Dados atualizados.")
+    onSalvar: r => persistir(r, "Dados atualizados."),
+    professoresOpcoes: professoresOpcoes
   }), tab === "anamnese" && /*#__PURE__*/React.createElement(AnamneseTab, {
     aluno: aluno,
     onSalvar: r => persistir(r, "Anamnese salva.")
@@ -2115,7 +2474,8 @@ function FichaAluno({
 /* ===== 11-cadastro-tab.jsx ===== */
 function CadastroTab({
   aluno,
-  onSalvar
+  onSalvar,
+  professoresOpcoes
 }) {
   const [nome, setNome] = useState(aluno.nome);
   const [telefone, setTelefone] = useState(aluno.telefone || "");
@@ -2181,7 +2541,7 @@ function CadastroTab({
     label: "Nome completo",
     valor: aluno.nome
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "Professor respons\xE1vel",
+    label: "Professor responsável",
     valor: aluno.professorResponsavel
   }), /*#__PURE__*/React.createElement(CampoView, {
     label: "Telefone",
@@ -2195,11 +2555,16 @@ function CadastroTab({
     value: nome,
     onChange: e => setNome(e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Professor respons\xE1vel"
-  }, /*#__PURE__*/React.createElement(TextInput, {
+    label: "Professor responsável"
+  }, /*#__PURE__*/React.createElement(Select, {
     value: professor,
     onChange: e => setProfessor(e.target.value)
-  })), /*#__PURE__*/React.createElement(Field, {
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "— nenhum —"), (professoresOpcoes || []).map(p => /*#__PURE__*/React.createElement("option", {
+    key: p,
+    value: p
+  }, p)))), /*#__PURE__*/React.createElement(Field, {
     label: "Telefone"
   }, /*#__PURE__*/React.createElement("div", {
     className: "relative"
@@ -2303,7 +2668,7 @@ function CampoView({
     className: "text-sm text-stone-800 whitespace-pre-wrap"
   }, valor ? valor : /*#__PURE__*/React.createElement("span", {
     className: "text-stone-400"
-  }, "\u2014")));
+  }, "—")));
 }
 function AnamneseTab({
   aluno,
@@ -2438,60 +2803,60 @@ function AnamneseTab({
     label: "Objetivo principal",
     valor: form.objetivoPrincipal
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "N\xEDvel de atividade f\xEDsica atual",
+    label: "Nível de atividade física atual",
     valor: labelOpcao(OPCOES_ATIVIDADE, form.nivelAtividadeAtual)
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "Hist\xF3rico de pr\xE1tica de atividade f\xEDsica",
+    label: "Histórico de prática de atividade física",
     valor: form.historicoAtividade
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "Doen\xE7as diagnosticadas",
+    label: "Doenças diagnosticadas",
     valor: form.doencasDiagnosticadas
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "Cirurgias pr\xE9vias",
+    label: "Cirurgias prévias",
     valor: form.cirurgiasPrevias
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "Les\xF5es / dores atuais",
+    label: "Lesões / dores atuais",
     valor: form.lesoesDoresAtuais
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "Medicamentos cont\xEDnuos",
+    label: "Medicamentos contínuos",
     valor: form.medicamentosContinuos
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "Hist\xF3rico familiar relevante",
+    label: "Histórico familiar relevante",
     valor: form.historicoFamiliar
   }), /*#__PURE__*/React.createElement(CampoView, {
     label: "Fumante?",
     valor: labelOpcao(OPCOES_FUMANTE, form.fumante)
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "Consumo de \xE1lcool",
+    label: "Consumo de álcool",
     valor: labelOpcao(OPCOES_ALCOOL, form.consumoAlcool)
   }), /*#__PURE__*/React.createElement(CampoView, {
     label: "Qualidade do sono",
     valor: form.qualidadeSono
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "N\xEDvel de estresse percebido",
+    label: "Nível de estresse percebido",
     valor: labelOpcao(OPCOES_ESTRESSE, form.nivelEstresse)
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "Consumo de \xE1gua di\xE1rio",
+    label: "Consumo de água diário",
     valor: form.consumoAgua
   }), /*#__PURE__*/React.createElement(CampoView, {
-    label: "Restri\xE7\xF5es alimentares / alergias",
+    label: "Restrições alimentares / alergias",
     valor: form.restricoesAlimentares
   }), /*#__PURE__*/React.createElement(CampoView, {
     label: "Rotina alimentar resumida",
     valor: form.rotinaAlimentar
   })), /*#__PURE__*/React.createElement(CampoView, {
-    label: "Observa\xE7\xF5es gerais",
+    label: "Observações gerais",
     valor: form.observacoesGerais
   })) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-1 sm:grid-cols-2 gap-x-6"
   }, /*#__PURE__*/React.createElement(Field, {
     label: "Objetivo principal",
-    hint: "O que o aluno quer alcan\xE7ar"
+    hint: "O que o aluno quer alcançar"
   }, /*#__PURE__*/React.createElement(TextArea, {
     value: form.objetivoPrincipal,
     onChange: e => set("objetivoPrincipal", e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "N\xEDvel de atividade f\xEDsica atual"
+    label: "Nível de atividade física atual"
   }, /*#__PURE__*/React.createElement(Select, {
     value: form.nivelAtividadeAtual,
     onChange: e => set("nivelAtividadeAtual", e.target.value)
@@ -2501,32 +2866,32 @@ function AnamneseTab({
     key: o.value,
     value: o.value
   }, o.label)))), /*#__PURE__*/React.createElement(Field, {
-    label: "Hist\xF3rico de pr\xE1tica de atividade f\xEDsica"
+    label: "Histórico de prática de atividade física"
   }, /*#__PURE__*/React.createElement(TextArea, {
     value: form.historicoAtividade,
     onChange: e => set("historicoAtividade", e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Doen\xE7as diagnosticadas"
+    label: "Doenças diagnosticadas"
   }, /*#__PURE__*/React.createElement(TextArea, {
     value: form.doencasDiagnosticadas,
     onChange: e => set("doencasDiagnosticadas", e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Cirurgias pr\xE9vias"
+    label: "Cirurgias prévias"
   }, /*#__PURE__*/React.createElement(TextArea, {
     value: form.cirurgiasPrevias,
     onChange: e => set("cirurgiasPrevias", e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Les\xF5es / dores atuais"
+    label: "Lesões / dores atuais"
   }, /*#__PURE__*/React.createElement(TextArea, {
     value: form.lesoesDoresAtuais,
     onChange: e => set("lesoesDoresAtuais", e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Medicamentos cont\xEDnuos"
+    label: "Medicamentos contínuos"
   }, /*#__PURE__*/React.createElement(TextArea, {
     value: form.medicamentosContinuos,
     onChange: e => set("medicamentosContinuos", e.target.value)
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Hist\xF3rico familiar relevante"
+    label: "Histórico familiar relevante"
   }, /*#__PURE__*/React.createElement(TextArea, {
     value: form.historicoFamiliar,
     onChange: e => set("historicoFamiliar", e.target.value)
@@ -2541,7 +2906,7 @@ function AnamneseTab({
     key: o.value,
     value: o.value
   }, o.label)))), /*#__PURE__*/React.createElement(Field, {
-    label: "Consumo de \xE1lcool"
+    label: "Consumo de álcool"
   }, /*#__PURE__*/React.createElement(Select, {
     value: form.consumoAlcool,
     onChange: e => set("consumoAlcool", e.target.value)
@@ -2557,7 +2922,7 @@ function AnamneseTab({
     onChange: e => set("qualidadeSono", e.target.value),
     placeholder: "Ex: 6h, sono leve"
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "N\xEDvel de estresse percebido"
+    label: "Nível de estresse percebido"
   }, /*#__PURE__*/React.createElement(Select, {
     value: form.nivelEstresse,
     onChange: e => set("nivelEstresse", e.target.value)
@@ -2567,13 +2932,13 @@ function AnamneseTab({
     key: o.value,
     value: o.value
   }, o.label)))), /*#__PURE__*/React.createElement(Field, {
-    label: "Consumo de \xE1gua di\xE1rio"
+    label: "Consumo de água diário"
   }, /*#__PURE__*/React.createElement(TextInput, {
     value: form.consumoAgua,
     onChange: e => set("consumoAgua", e.target.value),
     placeholder: "Ex: 2 litros"
   })), /*#__PURE__*/React.createElement(Field, {
-    label: "Restri\xE7\xF5es alimentares / alergias"
+    label: "Restrições alimentares / alergias"
   }, /*#__PURE__*/React.createElement(TextArea, {
     value: form.restricoesAlimentares,
     onChange: e => set("restricoesAlimentares", e.target.value)
@@ -2583,7 +2948,7 @@ function AnamneseTab({
     value: form.rotinaAlimentar,
     onChange: e => set("rotinaAlimentar", e.target.value)
   }))), /*#__PURE__*/React.createElement(Field, {
-    label: "Observa\xE7\xF5es gerais"
+    label: "Observações gerais"
   }, /*#__PURE__*/React.createElement(TextArea, {
     value: form.observacoesGerais,
     onChange: e => set("observacoesGerais", e.target.value)
@@ -2736,7 +3101,7 @@ function NovaAvaliacaoForm({
     }))
   })), /*#__PURE__*/React.createElement("p", {
     className: "text-xs font-semibold uppercase tracking-wide text-stone-500 mb-2 mt-2"
-  }, "Circunfer\xEAncias (cm)"), /*#__PURE__*/React.createElement("div", {
+  }, "Circunferências (cm)"), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-2 sm:grid-cols-5 gap-x-4"
   }, CAMPOS_MEDIDA.map(([campo, label]) => /*#__PURE__*/React.createElement(NumberField, {
     key: campo,
@@ -2760,7 +3125,7 @@ function NovaAvaliacaoForm({
       }
     }))
   }))), /*#__PURE__*/React.createElement(Field, {
-    label: "Observa\xE7\xF5es t\xE9cnicas do professor"
+    label: "Observações técnicas do professor"
   }, /*#__PURE__*/React.createElement(TextArea, {
     value: av.observacoesProfessor,
     onChange: e => setAv(a => ({
@@ -2836,7 +3201,7 @@ function CardAvaliacao({
     className: "absolute inset-0 bg-stone-900/0 group-hover:bg-stone-900/40 transition-colors flex items-center justify-center"
   }, /*#__PURE__*/React.createElement("span", {
     className: "text-white text-[10px] font-medium bg-stone-900/70 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-  }, "\uD83D\uDD0D"))) : null), !temFoto ? /*#__PURE__*/React.createElement("span", {
+  }, "🔍"))) : null), !temFoto ? /*#__PURE__*/React.createElement("span", {
     className: "text-xs text-stone-400 flex items-center gap-1"
   }, /*#__PURE__*/React.createElement(ImageOff, {
     size: 13
@@ -2866,7 +3231,7 @@ function ComparativoFotos({
     }
   }, /*#__PURE__*/React.createElement(GitCompareArrows, {
     size: 18
-  }), " Comparativo de evolu\xE7\xE3o"), /*#__PURE__*/React.createElement("button", {
+  }), " Comparativo de evolução"), /*#__PURE__*/React.createElement("button", {
     onClick: onFechar,
     className: "text-stone-400 hover:text-stone-600"
   }, /*#__PURE__*/React.createElement(X, {
@@ -3182,7 +3547,7 @@ function ModalComparacaoVisual({
     }
   }, /*#__PURE__*/React.createElement(Sparkles, {
     size: 18
-  }), " Compara\xE7\xE3o visual"), /*#__PURE__*/React.createElement("button", {
+  }), " Comparação visual"), /*#__PURE__*/React.createElement("button", {
     onClick: onFechar,
     className: "text-stone-400 hover:text-stone-600"
   }, /*#__PURE__*/React.createElement(X, {
@@ -3319,10 +3684,10 @@ function AvaliacoesTab({
     className: "flex items-center justify-between mb-4"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-stone-500"
-  }, avaliacoes.length, " avalia\xE7", avaliacoes.length === 1 ? "ão" : "ões", " registrada(s)"), /*#__PURE__*/React.createElement("div", {
+  }, avaliacoes.length, " avaliaç", avaliacoes.length === 1 ? "ão" : "ões", " registrada(s)"), /*#__PURE__*/React.createElement("div", {
     className: "flex gap-2"
   }, /*#__PURE__*/React.createElement(BotaoPDF, {
-    label: "Imprimir Avalia\xE7\xF5es",
+    label: "Imprimir Avaliações",
     onClick: () => gerarPDF(aluno.nome, "Avaliações", gerarLinhasPDF())
   }), selecionadas.length === 2 ? /*#__PURE__*/React.createElement("button", {
     onClick: () => setComparando(true),
@@ -3334,7 +3699,7 @@ function AvaliacoesTab({
     className: "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-emerald-700 text-white hover:bg-emerald-800"
   }, /*#__PURE__*/React.createElement(Plus, {
     size: 14
-  }), " Nova avalia\xE7\xE3o") : null)), mostrarForm ? /*#__PURE__*/React.createElement(NovaAvaliacaoForm, {
+  }), " Nova avaliação") : null)), mostrarForm ? /*#__PURE__*/React.createElement(NovaAvaliacaoForm, {
     onSalvar: salvarNovaAvaliacao,
     onCancelar: () => setMostrarForm(false)
   }) : null, avaliacoes.length === 0 && !mostrarForm ? /*#__PURE__*/React.createElement("div", {
@@ -3344,7 +3709,7 @@ function AvaliacoesTab({
     className: "mx-auto mb-2"
   }), /*#__PURE__*/React.createElement("p", {
     className: "text-sm"
-  }, "Nenhuma avalia\xE7\xE3o registrada ainda.")) : /*#__PURE__*/React.createElement("div", {
+  }, "Nenhuma avaliação registrada ainda.")) : /*#__PURE__*/React.createElement("div", {
     className: "space-y-3"
   }, avaliacoes.map(av => editandoId === av.id ? /*#__PURE__*/React.createElement(NovaAvaliacaoForm, {
     key: av.id,
@@ -3377,7 +3742,7 @@ function AvaliacoesTab({
     className: "flex items-center gap-1.5 mt-3 px-3.5 py-2 text-sm rounded-md font-medium transition-colors " + (selecionadas.length === 2 ? "bg-emerald-700 text-white hover:bg-emerald-800" : "bg-stone-100 text-stone-400 cursor-not-allowed")
   }, /*#__PURE__*/React.createElement(Sparkles, {
     size: 14
-  }), " Gerar compara\xE7\xE3o visual")) : null, comparando && avA && avB ? /*#__PURE__*/React.createElement(ComparativoFotos, {
+  }), " Gerar comparação visual")) : null, comparando && avA && avB ? /*#__PURE__*/React.createElement(ComparativoFotos, {
     avA: avA,
     avB: avB,
     onFechar: () => setComparando(false)
@@ -3408,7 +3773,7 @@ function EvolucaoTab({
       className: "mx-auto mb-2"
     }), /*#__PURE__*/React.createElement("p", {
       className: "text-sm"
-    }, "Registre pelo menos 2 avalia\xE7\xF5es para visualizar a evolu\xE7\xE3o do aluno."));
+    }, "Registre pelo menos 2 avaliações para visualizar a evolução do aluno."));
   }
   const dadosGrafico = avaliacoesAsc.map(av => ({
     dataFmt: formatDateBR(av.data),
@@ -3471,8 +3836,8 @@ function EvolucaoTab({
     className: "flex items-center justify-between mb-5"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-stone-500"
-  }, "De ", formatDateBR(primeira.data), " at\xE9 ", formatDateBR(ultima.data), " \xB7 ", avaliacoesAsc.length, " avalia\xE7\xF5es registradas"), /*#__PURE__*/React.createElement(BotaoPDF, {
-    label: "Imprimir Evolu\xE7\xE3o",
+  }, "De ", formatDateBR(primeira.data), " até ", formatDateBR(ultima.data), " · ", avaliacoesAsc.length, " avaliações registradas"), /*#__PURE__*/React.createElement(BotaoPDF, {
+    label: "Imprimir Evolução",
     onClick: () => gerarPDF(aluno.nome, "Evolução", gerarLinhasPDF())
   })), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6"
@@ -3544,7 +3909,7 @@ function EvolucaoTab({
     className: "flex items-center justify-between mb-2"
   }, /*#__PURE__*/React.createElement("p", {
     className: "text-xs font-semibold uppercase tracking-wide text-stone-500"
-  }, "Circunfer\xEAncia"), /*#__PURE__*/React.createElement("div", {
+  }, "Circunferência"), /*#__PURE__*/React.createElement("div", {
     className: "w-48"
   }, /*#__PURE__*/React.createElement(Select, {
     value: medidaSelecionada,
@@ -3591,9 +3956,9 @@ function EvolucaoTab({
     className: "text-left px-3 py-2 font-semibold"
   }, "Primeira"), /*#__PURE__*/React.createElement("th", {
     className: "text-left px-3 py-2 font-semibold"
-  }, "\xDAltima"), /*#__PURE__*/React.createElement("th", {
+  }, "Última"), /*#__PURE__*/React.createElement("th", {
     className: "text-left px-3 py-2 font-semibold"
-  }, "Diferen\xE7a"))), /*#__PURE__*/React.createElement("tbody", null, linhaResumo("Peso", av => av.peso, "kg"), linhaResumo("% Gordura", av => av.percentualGordura, "%"), CAMPOS_MEDIDA.map(([campo, label]) => linhaResumo(label, av => av.medidas[campo], "cm"))))));
+  }, "Diferença"))), /*#__PURE__*/React.createElement("tbody", null, linhaResumo("Peso", av => av.peso, "kg"), linhaResumo("% Gordura", av => av.percentualGordura, "%"), CAMPOS_MEDIDA.map(([campo, label]) => linhaResumo(label, av => av.medidas[campo], "cm"))))));
 }
 
 /* ===== 17-observacoes-tab.jsx ===== */
@@ -3659,17 +4024,17 @@ function ObservacoesTab({
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex justify-end mb-4"
   }, /*#__PURE__*/React.createElement(BotaoPDF, {
-    label: "Imprimir Observa\xE7\xF5es",
+    label: "Imprimir Observações",
     onClick: () => gerarPDF(aluno.nome, "Observações", gerarLinhasPDF())
   })), /*#__PURE__*/React.createElement("div", {
     className: "border border-stone-200 rounded-lg p-4 mb-6"
   }, /*#__PURE__*/React.createElement(Field, {
-    label: "Nova observa\xE7\xE3o t\xE9cnica",
-    hint: "Anota\xE7\xF5es r\xE1pidas sobre evolu\xE7\xE3o, comportamento ou ajustes \u2014 n\xE3o precisa estar ligada a uma avalia\xE7\xE3o formal."
+    label: "Nova observação técnica",
+    hint: "Anotações rápidas sobre evolução, comportamento ou ajustes — não precisa estar ligada a uma avaliação formal."
   }, /*#__PURE__*/React.createElement(TextArea, {
     value: texto,
     onChange: e => setTexto(e.target.value),
-    placeholder: "Ex: Aluno relatou desconforto no ombro direito durante supino. Reduzir carga na pr\xF3xima sess\xE3o."
+    placeholder: "Ex: Aluno relatou desconforto no ombro direito durante supino. Reduzir carga na próxima sessão."
   })), /*#__PURE__*/React.createElement("button", {
     onClick: adicionar,
     disabled: salvando || !texto.trim(),
@@ -3679,14 +4044,14 @@ function ObservacoesTab({
     className: "animate-spin"
   }) : /*#__PURE__*/React.createElement(Send, {
     size: 14
-  }), " Registrar observa\xE7\xE3o")), observacoes.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }), " Registrar observação")), observacoes.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "text-center py-12 text-stone-400 border border-dashed border-stone-300 rounded-lg"
   }, /*#__PURE__*/React.createElement(MessageSquare, {
     size: 24,
     className: "mx-auto mb-2"
   }), /*#__PURE__*/React.createElement("p", {
     className: "text-sm"
-  }, "Nenhuma observa\xE7\xE3o registrada ainda.")) : /*#__PURE__*/React.createElement("div", {
+  }, "Nenhuma observação registrada ainda.")) : /*#__PURE__*/React.createElement("div", {
     className: "space-y-3"
   }, observacoes.map(o => /*#__PURE__*/React.createElement("div", {
     key: o.id,
@@ -3703,8 +4068,8 @@ function ObservacoesTab({
   })) : null), /*#__PURE__*/React.createElement("p", {
     className: "text-sm text-stone-700 whitespace-pre-wrap"
   }, o.texto)))), confirmandoExclusaoId ? /*#__PURE__*/React.createElement(ConfirmModal, {
-    title: "Excluir observa\xE7\xE3o",
-    message: "Tem certeza que deseja excluir essa observa\xE7\xE3o? Essa a\xE7\xE3o n\xE3o pode ser desfeita.",
+    title: "Excluir observação",
+    message: "Tem certeza que deseja excluir essa observação? Essa ação não pode ser desfeita.",
     confirmLabel: "Excluir",
     onCancel: () => setConfirmandoExclusaoId(null),
     onConfirm: () => excluir(confirmandoExclusaoId)
@@ -3725,9 +4090,17 @@ function App() {
   const [exportando, setExportando] = useState(false);
   const [lixeira, setLixeira] = useState([]);
   const [ultimoBackupEm, setUltimoBackupEm] = useState(null);
+  const [professoresCadastrados, setProfessoresCadastrados] = useState([]);
+  const [filtroProfessorParaLista, setFiltroProfessorParaLista] = useState("");
 
-  // Rebusca a lista, a lixeira e a data do ultimo backup. Serve tanto pra
-  // carga inicial quanto pra quando o outro aparelho mexeu em alguma coisa.
+  // Professor responsavel, no formulario de aluno: junta quem esta
+  // cadastrado com nomes livres que ja apareciam em alunos antigos, pra
+  // ninguem sumir da lista so por causa da migracao pro cadastro novo.
+  const professoresOpcoes = professoresParaSelect(professoresCadastrados, index, "");
+
+  // Rebusca a lista, a lixeira, a data do ultimo backup e os professores.
+  // Serve tanto pra carga inicial quanto pra quando o outro aparelho mexeu
+  // em alguma coisa.
   const recarregarTudo = useCallback(async () => {
     if (!tokenSalvo()) return;
     try {
@@ -3749,6 +4122,11 @@ function App() {
       setUltimoBackupEm(res ? res.value : null);
     } catch (e) {
       setUltimoBackupEm(null);
+    }
+    try {
+      setProfessoresCadastrados(await professoresListar());
+    } catch (e) {
+      setProfessoresCadastrados([]);
     }
   }, []);
 
@@ -4224,9 +4602,15 @@ function App() {
     className: "animate-spin"
   }) : /*#__PURE__*/React.createElement(Download, {
     size: 12
-  }), exportando ? "Gerando backup..." : "Exportar backup") : null, view !== "lixeira" ? /*#__PURE__*/React.createElement("button", {
+  }), exportando ? "Gerando backup..." : "Exportar backup") : null, role === "admin" && view !== "professores" ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => setView("professores"),
+    title: "Cadastrar e gerenciar professores",
+    className: "flex items-center gap-1.5 text-xs font-medium text-stone-600 hover:text-stone-800 px-2.5 py-1 rounded-md border border-stone-300 hover:bg-stone-200"
+  }, /*#__PURE__*/React.createElement(Users, {
+    size: 12
+  }), "Professores") : null, view !== "lixeira" ? /*#__PURE__*/React.createElement("button", {
     onClick: () => setView("lixeira"),
-    title: "Ver alunos exclu\xEDdos",
+    title: "Ver alunos excluídos",
     className: "flex items-center gap-1.5 text-xs font-medium text-stone-600 hover:text-stone-800 px-2.5 py-1 rounded-md border border-stone-300 hover:bg-stone-200"
   }, /*#__PURE__*/React.createElement(Trash2, {
     size: 12
@@ -4266,6 +4650,7 @@ function App() {
   }) : /*#__PURE__*/React.createElement(Download, {
     size: 12
   }), exportando ? "Gerando..." : "Exportar agora")) : null, view === "lista" ? /*#__PURE__*/React.createElement(ListaAlunos, {
+    key: filtroProfessorParaLista,
     index: index,
     loading: loadingIndex,
     onAbrir: id => {
@@ -4273,7 +4658,8 @@ function App() {
       setView("ficha");
     },
     onNovoAluno: () => setMostrarNovoAluno(true),
-    onAtualizar: atualizarLista
+    onAtualizar: atualizarLista,
+    filtroProfessorInicial: filtroProfessorParaLista
   }) : view === "lixeira" ? /*#__PURE__*/React.createElement(TelaLixeira, {
     lixeira: lixeira,
     loading: false,
@@ -4282,6 +4668,13 @@ function App() {
     onRestaurar: restaurarAluno,
     onExcluirPermanente: excluirPermanentemente,
     onAtualizar: atualizarLixeira
+  }) : view === "professores" && role === "admin" ? /*#__PURE__*/React.createElement(TelaProfessores, {
+    index: index,
+    onVoltar: () => setView("lista"),
+    onVerAlunos: nome => {
+      setFiltroProfessorParaLista(nome);
+      setView("lista");
+    }
   }) : /*#__PURE__*/React.createElement(FichaAluno, {
     alunoId: alunoAtivo,
     role: role,
@@ -4290,10 +4683,12 @@ function App() {
     getAluno: getAluno,
     salvarAluno: salvarAluno,
     excluirAluno: excluirAluno,
-    onVoltar: () => setView("lista")
+    onVoltar: () => setView("lista"),
+    professoresOpcoes: professoresOpcoes
   }), mostrarNovoAluno ? /*#__PURE__*/React.createElement(NovoAlunoModal, {
     onCriar: criarAluno,
-    onCancelar: () => setMostrarNovoAluno(false)
+    onCancelar: () => setMostrarNovoAluno(false),
+    professoresOpcoes: professoresOpcoes
   }) : null));
 }
 const root = ReactDOM.createRoot(document.getElementById("root"));

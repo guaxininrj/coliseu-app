@@ -339,6 +339,7 @@ function _seedMockData() {
 
 const API_BASE = "/api/storage.php";
 const API_LOGIN = "/api/auth.php";
+const API_PROFESSORES = "/api/professores.php";
 const CHAVE_TOKEN = "coliseu_token";
 
 /* A senha nao mora mais aqui. Ela ficava em duas constantes neste arquivo,
@@ -444,6 +445,61 @@ async function storageDelete(key) {
   });
   if (!res.ok) throw new Error("Falha ao excluir dado (" + res.status + ")");
   return true;
+}
+
+/* ---------------------------------------------------------------- */
+/* Professores -- endpoint proprio (api/professores.php), separado do
+   armazenamento generico de chave/valor: e ele quem sabe gerar o hash da
+   senha, e "listar" nunca devolve o hash pro navegador. */
+async function professoresListar() {
+  const res = await chamarApi(`${API_PROFESSORES}?action=listar`);
+  if (!res.ok) throw new Error("Falha ao listar professores (" + res.status + ")");
+  const dados = await res.json();
+  return dados.professores || [];
+}
+
+async function professorCriar(nome, senha) {
+  const res = await chamarApi(`${API_PROFESSORES}?action=criar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nome, senha }),
+  });
+  const dados = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(dados.erro || "Falha ao criar professor");
+  return dados;
+}
+
+async function professorEditarSenha(id, senha) {
+  const res = await chamarApi(`${API_PROFESSORES}?action=editar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, senha }),
+  });
+  const dados = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(dados.erro || "Falha ao editar professor");
+  return dados;
+}
+
+async function professorExcluir(id) {
+  const res = await chamarApi(`${API_PROFESSORES}?action=excluir`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  const dados = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(dados.erro || "Falha ao excluir professor");
+  return dados;
+}
+
+/* Junta os professores CADASTRADOS com os nomes que ja aparecem em alunos
+   antigos (texto livre, de antes de existir cadastro) -- e mais o valor
+   atual, se for algum nome fora das duas listas. Sem isso, um aluno com
+   professor incomum ficaria com o campo vazio ao abrir o formulario. */
+function professoresParaSelect(cadastrados, index, valorAtual) {
+  const nomes = new Set(cadastrados.map((p) => p.nome));
+  (index || []).forEach((a) => { if (a.professorResponsavel) nomes.add(a.professorResponsavel); });
+  if (valorAtual) nomes.add(valorAtual);
+  return Array.from(nomes).sort((a, b) => a.localeCompare(b));
 }
 
 function todayISO() {
@@ -869,9 +925,9 @@ function LoginGate({ onLogin }) {
 }
 
 /* ===== 06-lista-alunos.jsx ===== */
-function ListaAlunos({ index, loading, onAbrir, onNovoAluno, onAtualizar }) {
+function ListaAlunos({ index, loading, onAbrir, onNovoAluno, onAtualizar, filtroProfessorInicial }) {
   const [busca, setBusca] = useState("");
-  const [professorFiltro, setProfessorFiltro] = useState("");
+  const [professorFiltro, setProfessorFiltro] = useState(filtroProfessorInicial || "");
   const [ordenarPor, setOrdenarPor] = useState("nome");
 
   const professores = Array.from(
@@ -998,7 +1054,7 @@ function ListaAlunos({ index, loading, onAbrir, onNovoAluno, onAtualizar }) {
   );
 }
 
-function NovoAlunoModal({ onCriar, onCancelar }) {
+function NovoAlunoModal({ onCriar, onCancelar, professoresOpcoes }) {
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [email, setEmail] = useState("");
@@ -1030,7 +1086,12 @@ function NovoAlunoModal({ onCriar, onCancelar }) {
           <TextInput value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Maria Silva" autoFocus />
         </Field>
         <Field label="Professor responsável">
-          <TextInput value={professor} onChange={(e) => setProfessor(e.target.value)} placeholder="Ex: João" />
+          <Select value={professor} onChange={(e) => setProfessor(e.target.value)}>
+            <option value="">— nenhum —</option>
+            {(professoresOpcoes || []).map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </Select>
         </Field>
         <Field label="Telefone">
           <TextInput value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(00) 00000-0000" />
@@ -1193,6 +1254,271 @@ function TelaLixeira({ lixeira, loading, role, onVoltar, onRestaurar, onExcluirP
           confirmLabel="Excluir para sempre"
           onCancel={() => setConfirmandoPermanenteId(null)}
           onConfirm={() => handleExcluirPermanente(confirmandoPermanenteId)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/* ===== 07b-professores.jsx ===== */
+/* ---------------------------------------------------------------- */
+/* Professores -- cada um tem conta propria (nome + senha escolhida  */
+/* pelo admin no cadastro). Antes era uma senha unica compartilhada  */
+/* por todos; agora da pra tirar o acesso de um so, sem mexer nos    */
+/* outros, e clicando num professor da lista de pra ver os alunos    */
+/* dele.                                                              */
+/* ---------------------------------------------------------------- */
+
+function ProfessorFormModal({ titulo, nomeInicial, nomeTravado, onSalvar, onCancelar }) {
+  const [nome, setNome] = useState(nomeInicial || "");
+  const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState("");
+  const [salvando, setSalvando] = useState(false);
+
+  async function handleSalvar() {
+    if (!nomeTravado && !nome.trim()) { setErro("Informe o nome do professor."); return; }
+    if (senha.length < 4) { setErro("A senha precisa de pelo menos 4 caracteres."); return; }
+    setErro("");
+    setSalvando(true);
+    try {
+      await onSalvar({ nome: nome.trim(), senha });
+    } catch (e) {
+      setErro((e && e.message) || "Não foi possível salvar.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-stone-900/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-stone-800 text-lg" style={{ fontFamily: SANS }}>{titulo}</h3>
+          <button onClick={onCancelar} className="text-stone-400 hover:text-stone-600">
+            <X size={18} />
+          </button>
+        </div>
+        {erro ? <Banner onClose={() => setErro("")}>{erro}</Banner> : null}
+        <Field label="Nome do professor">
+          {nomeTravado ? (
+            <div className="px-3 py-2 rounded-md bg-stone-100 text-stone-700 text-sm">{nome}</div>
+          ) : (
+            <TextInput value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: João Silva" autoFocus />
+          )}
+        </Field>
+        <Field label={nomeTravado ? "Nova senha" : "Senha"} hint={nomeTravado ? "Pelo menos 4 caracteres." : "O professor vai usar esta senha pra entrar. Pelo menos 4 caracteres."}>
+          <div className="relative">
+            <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+            <input
+              type="text"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              placeholder="Ex: 48213"
+              className={inputClass + " pl-9"}
+              autoFocus={nomeTravado}
+            />
+          </div>
+        </Field>
+        <div className="flex justify-end gap-2 mt-2">
+          <button onClick={onCancelar} className="px-3 py-2 text-sm rounded-md text-stone-600 hover:bg-stone-100">
+            Cancelar
+          </button>
+          <button
+            onClick={handleSalvar}
+            disabled={salvando}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-60"
+          >
+            {salvando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            {nomeTravado ? "Salvar senha" : "Cadastrar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TelaProfessores({ index, onVoltar, onVerAlunos }) {
+  const [professores, setProfessores] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState("");
+  const [mostrarNovo, setMostrarNovo] = useState(false);
+  const [editando, setEditando] = useState(null); // {id, nome} ou null
+  const [confirmandoExcluirId, setConfirmandoExcluirId] = useState(null);
+  const [excluindoId, setExcluindoId] = useState(null);
+
+  async function carregar() {
+    setLoading(true);
+    setErro("");
+    try {
+      setProfessores(await professoresListar());
+    } catch (e) {
+      setErro((e && e.message) || "Não foi possível carregar os professores.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { carregar(); }, []);
+
+  function contarAlunos(nome) {
+    return index.filter((a) => a.professorResponsavel === nome).length;
+  }
+
+  async function handleCriar({ nome, senha }) {
+    await professorCriar(nome, senha);
+    setMostrarNovo(false);
+    await carregar();
+  }
+
+  async function handleEditar({ senha }) {
+    await professorEditarSenha(editando.id, senha);
+    setEditando(null);
+    await carregar();
+  }
+
+  async function handleExcluir(id) {
+    setErro("");
+    setExcluindoId(id);
+    try {
+      await professorExcluir(id);
+      setConfirmandoExcluirId(null);
+      await carregar();
+    } catch (e) {
+      setErro((e && e.message) || "Não foi possível excluir este professor.");
+    } finally {
+      setExcluindoId(null);
+    }
+  }
+
+  function formatarData(iso) {
+    if (!iso) return "—";
+    try { return new Date(iso).toLocaleDateString("pt-BR"); } catch (e) { return "—"; }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <button
+            onClick={onVoltar}
+            className="flex items-center gap-1 text-sm text-stone-500 hover:text-stone-700 mb-1"
+          >
+            <ChevronLeft size={15} /> Voltar para alunos
+          </button>
+          <h1 className="text-2xl font-bold text-stone-800 flex items-center gap-2" style={{ fontFamily: SANS }}>
+            <Users size={20} className="text-stone-400" /> Professores
+          </h1>
+          <p className="text-sm text-stone-500">{professores.length} cadastrado(s)</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={carregar}
+            disabled={loading}
+            title="Recarregar"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium border border-stone-300 text-stone-600 hover:bg-stone-100 disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            Atualizar
+          </button>
+          <button
+            onClick={() => setMostrarNovo(true)}
+            className="flex items-center gap-1.5 bg-emerald-700 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-emerald-800"
+          >
+            <Plus size={16} /> Novo professor
+          </button>
+        </div>
+      </div>
+
+      {erro ? <Banner onClose={() => setErro("")}>{erro}</Banner> : null}
+
+      <div className="mb-4 text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-md px-3 py-2">
+        Cada professor entra com a própria senha, na tela inicial. Clique num professor pra ver os alunos dele.
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-stone-500 text-sm py-10 justify-center">
+          <Loader2 size={16} className="animate-spin" /> Carregando professores...
+        </div>
+      ) : professores.length === 0 ? (
+        <div className="text-center py-16 text-stone-400 border border-dashed border-stone-300 rounded-lg">
+          <Users size={28} className="mx-auto mb-2" />
+          <p className="text-sm">Nenhum professor cadastrado ainda.</p>
+        </div>
+      ) : (
+        <div className="border border-stone-200 rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-stone-50 text-stone-500 text-xs uppercase tracking-wide">
+              <tr>
+                <th className="text-left px-4 py-2.5 font-semibold">Nome</th>
+                <th className="text-left px-4 py-2.5 font-semibold">Alunos</th>
+                <th className="text-left px-4 py-2.5 font-semibold">Cadastrado em</th>
+                <th className="px-4 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {professores.map((p) => (
+                <tr key={p.id} className="border-t border-stone-100 hover:bg-stone-50">
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => onVerAlunos(p.nome)}
+                      className="font-medium text-stone-800 hover:text-emerald-700 hover:underline text-left"
+                      title="Ver alunos deste professor"
+                    >
+                      {p.nome}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-stone-600">{contarAlunos(p.nome)}</td>
+                  <td className="px-4 py-3 text-stone-500 font-mono text-xs">{formatarData(p.criadoEm)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => setEditando({ id: p.id, nome: p.nome })}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-stone-300 text-stone-600 hover:bg-stone-100"
+                      >
+                        <Pencil size={12} /> Editar
+                      </button>
+                      <button
+                        onClick={() => setConfirmandoExcluirId(p.id)}
+                        disabled={excluindoId === p.id}
+                        className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        {excluindoId === p.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                        Excluir
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {mostrarNovo ? (
+        <ProfessorFormModal
+          titulo="Novo professor"
+          onSalvar={handleCriar}
+          onCancelar={() => setMostrarNovo(false)}
+        />
+      ) : null}
+
+      {editando ? (
+        <ProfessorFormModal
+          titulo={"Editar senha — " + editando.nome}
+          nomeInicial={editando.nome}
+          nomeTravado
+          onSalvar={handleEditar}
+          onCancelar={() => setEditando(null)}
+        />
+      ) : null}
+
+      {confirmandoExcluirId ? (
+        <ConfirmModal
+          title="Excluir professor"
+          message="O professor perde o acesso ao sistema. Os alunos que já apontam pro nome dele continuam com o cadastro intacto, só sem professor logado com esse nome. Esta ação não pode ser desfeita."
+          confirmLabel="Excluir professor"
+          onCancel={() => setConfirmandoExcluirId(null)}
+          onConfirm={() => handleExcluir(confirmandoExcluirId)}
         />
       ) : null}
     </div>
@@ -1883,7 +2209,7 @@ const TABS = [
   { id: "treino", label: "Treino", icon: Dumbbell },
 ];
 
-function FichaAluno({ alunoId, role, mudouFora, aoSincronizarFicha, getAluno, salvarAluno, excluirAluno, onVoltar }) {
+function FichaAluno({ alunoId, role, mudouFora, aoSincronizarFicha, getAluno, salvarAluno, excluirAluno, onVoltar, professoresOpcoes }) {
   const [aluno, setAluno] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("cadastro");
@@ -2033,7 +2359,7 @@ function FichaAluno({ alunoId, role, mudouFora, aoSincronizarFicha, getAluno, sa
         })}
       </div>
 
-      {tab === "cadastro" && <CadastroTab aluno={aluno} onSalvar={(r) => persistir(r, "Dados atualizados.")} />}
+      {tab === "cadastro" && <CadastroTab aluno={aluno} onSalvar={(r) => persistir(r, "Dados atualizados.")} professoresOpcoes={professoresOpcoes} />}
       {tab === "anamnese" && <AnamneseTab aluno={aluno} onSalvar={(r) => persistir(r, "Anamnese salva.")} />}
       {tab === "avaliacoes" && <AvaliacoesTab aluno={aluno} onSalvar={(r) => persistir(r, "Avaliação salva.")} />}
       {tab === "evolucao" && <EvolucaoTab aluno={aluno} />}
@@ -2058,7 +2384,7 @@ function FichaAluno({ alunoId, role, mudouFora, aoSincronizarFicha, getAluno, sa
 }
 
 /* ===== 11-cadastro-tab.jsx ===== */
-function CadastroTab({ aluno, onSalvar }) {
+function CadastroTab({ aluno, onSalvar, professoresOpcoes }) {
   const [nome, setNome] = useState(aluno.nome);
   const [telefone, setTelefone] = useState(aluno.telefone || "");
   const [email, setEmail] = useState(aluno.email || "");
@@ -2115,7 +2441,14 @@ function CadastroTab({ aluno, onSalvar }) {
       ) : (
         <>
           <Field label="Nome completo"><TextInput value={nome} onChange={(e) => setNome(e.target.value)} /></Field>
-          <Field label="Professor responsável"><TextInput value={professor} onChange={(e) => setProfessor(e.target.value)} /></Field>
+          <Field label="Professor responsável">
+            <Select value={professor} onChange={(e) => setProfessor(e.target.value)}>
+              <option value="">— nenhum —</option>
+              {(professoresOpcoes || []).map((p) => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Telefone">
             <div className="relative">
               <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
@@ -3392,9 +3725,17 @@ function App() {
   const [exportando, setExportando] = useState(false);
   const [lixeira, setLixeira] = useState([]);
   const [ultimoBackupEm, setUltimoBackupEm] = useState(null);
+  const [professoresCadastrados, setProfessoresCadastrados] = useState([]);
+  const [filtroProfessorParaLista, setFiltroProfessorParaLista] = useState("");
 
-  // Rebusca a lista, a lixeira e a data do ultimo backup. Serve tanto pra
-  // carga inicial quanto pra quando o outro aparelho mexeu em alguma coisa.
+  // Professor responsavel, no formulario de aluno: junta quem esta
+  // cadastrado com nomes livres que ja apareciam em alunos antigos, pra
+  // ninguem sumir da lista so por causa da migracao pro cadastro novo.
+  const professoresOpcoes = professoresParaSelect(professoresCadastrados, index, "");
+
+  // Rebusca a lista, a lixeira, a data do ultimo backup e os professores.
+  // Serve tanto pra carga inicial quanto pra quando o outro aparelho mexeu
+  // em alguma coisa.
   const recarregarTudo = useCallback(async () => {
     if (!tokenSalvo()) return;
     try {
@@ -3416,6 +3757,11 @@ function App() {
       setUltimoBackupEm(res ? res.value : null);
     } catch (e) {
       setUltimoBackupEm(null);
+    }
+    try {
+      setProfessoresCadastrados(await professoresListar());
+    } catch (e) {
+      setProfessoresCadastrados([]);
     }
   }, []);
 
@@ -3870,6 +4216,16 @@ function App() {
               {exportando ? "Gerando backup..." : "Exportar backup"}
             </button>
           ) : null}
+          {role === "admin" && view !== "professores" ? (
+            <button
+              onClick={() => setView("professores")}
+              title="Cadastrar e gerenciar professores"
+              className="flex items-center gap-1.5 text-xs font-medium text-stone-600 hover:text-stone-800 px-2.5 py-1 rounded-md border border-stone-300 hover:bg-stone-200"
+            >
+              <Users size={12} />
+              Professores
+            </button>
+          ) : null}
           {view !== "lixeira" ? (
             <button
               onClick={() => setView("lixeira")}
@@ -3920,11 +4276,13 @@ function App() {
 
         {view === "lista" ? (
           <ListaAlunos
+            key={filtroProfessorParaLista}
             index={index}
             loading={loadingIndex}
             onAbrir={(id) => { setAlunoAtivo(id); setView("ficha"); }}
             onNovoAluno={() => setMostrarNovoAluno(true)}
             onAtualizar={atualizarLista}
+            filtroProfessorInicial={filtroProfessorParaLista}
           />
         ) : view === "lixeira" ? (
           <TelaLixeira
@@ -3936,6 +4294,12 @@ function App() {
             onExcluirPermanente={excluirPermanentemente}
             onAtualizar={atualizarLixeira}
           />
+        ) : view === "professores" && role === "admin" ? (
+          <TelaProfessores
+            index={index}
+            onVoltar={() => setView("lista")}
+            onVerAlunos={(nome) => { setFiltroProfessorParaLista(nome); setView("lista"); }}
+          />
         ) : (
           <FichaAluno
             alunoId={alunoAtivo}
@@ -3946,11 +4310,16 @@ function App() {
             salvarAluno={salvarAluno}
             excluirAluno={excluirAluno}
             onVoltar={() => setView("lista")}
+            professoresOpcoes={professoresOpcoes}
           />
         )}
 
         {mostrarNovoAluno ? (
-          <NovoAlunoModal onCriar={criarAluno} onCancelar={() => setMostrarNovoAluno(false)} />
+          <NovoAlunoModal
+            onCriar={criarAluno}
+            onCancelar={() => setMostrarNovoAluno(false)}
+            professoresOpcoes={professoresOpcoes}
+          />
         ) : null}
       </div>
     </div>

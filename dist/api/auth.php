@@ -34,10 +34,28 @@ function hashDoAmbiente($nome) {
     return getenv($nome) ?: '';
 }
 
-$hashes = [
-    'professor' => hashDoAmbiente('SENHA_PROFESSOR_HASH'),
-    'admin'     => hashDoAmbiente('SENHA_ADMIN_HASH'),
-];
+/* Confere a senha contra um professor CADASTRADO (tabela armazenamento,
+   chaves "professor:*"). Testa contra cada um ate achar -- nao precisa de
+   campo de usuario porque a propria senha ja diz quem e. Numero de
+   professores de uma academia real e pequeno (dezenas, nao milhares), e
+   password_verify e proposital mente lento (bcrypt); nessa escala isso
+   continua respondendo em bem menos de 1 segundo. */
+function professorAutentica($conn, $senha) {
+    if ($senha === '') return null;
+    $res = $conn->query("SELECT valor FROM armazenamento WHERE chave LIKE 'professor:%'");
+    while ($res && ($linha = $res->fetch_assoc())) {
+        $registro = json_decode($linha['valor'], true);
+        if ($registro && !empty($registro['senhaHash']) && password_verify($senha, $registro['senhaHash'])) {
+            return $registro;
+        }
+    }
+    return null;
+}
+
+function existeAlgumProfessorCadastrado($conn) {
+    $res = $conn->query("SELECT 1 FROM armazenamento WHERE chave LIKE 'professor:%' LIMIT 1");
+    return $res && $res->num_rows > 0;
+}
 
 /* Bloqueio por tentativas, por IP e em arquivo. Sem isto, uma senha de
    poucos caracteres cai em minutos num script -- e nao adianta ter tirado
@@ -57,8 +75,33 @@ if ($tent['n'] >= $limite) {
     die(json_encode(['erro' => 'Muitas tentativas. Espere 15 minutos.']));
 }
 
-$hashCerto = $hashes[$perfil] ?? '';
-if (!$hashCerto || !$senha || !password_verify($senha, $hashCerto)) {
+/* $autenticado guarda o perfil que bateu e, se for professor cadastrado,
+   quem ele e. Continua nulo se nada bateu. */
+$autenticado = null;
+
+if ($perfil === 'admin') {
+    $hashAdmin = hashDoAmbiente('SENHA_ADMIN_HASH');
+    if ($hashAdmin && $senha && password_verify($senha, $hashAdmin)) {
+        $autenticado = ['perfil' => 'admin'];
+    }
+} elseif ($perfil === 'professor') {
+    $registro = professorAutentica($conn, $senha);
+    if ($registro) {
+        $autenticado = ['perfil' => 'professor', 'professorId' => $registro['id'], 'professorNome' => $registro['nome']];
+    } elseif (!existeAlgumProfessorCadastrado($conn)) {
+        /* Reserva: so vale enquanto NENHUM professor foi cadastrado ainda.
+           Assim que o primeiro e criado pelo painel de administracao, esta
+           senha unica do .env para de funcionar -- senao ela vira uma porta
+           dos fundos permanente, e o ponto inteiro de ter conta por
+           professor (saber quem mexeu, poder tirar o acesso de um so) some. */
+        $hashReserva = hashDoAmbiente('SENHA_PROFESSOR_HASH');
+        if ($hashReserva && $senha && password_verify($senha, $hashReserva)) {
+            $autenticado = ['perfil' => 'professor'];
+        }
+    }
+}
+
+if (!$autenticado) {
     $tent['n']++;
     @file_put_contents($arquivo, json_encode($tent));
     // resposta igual pra perfil inexistente e senha errada: dizer qual dos
@@ -68,8 +111,11 @@ if (!$hashCerto || !$senha || !password_verify($senha, $hashCerto)) {
 }
 
 @unlink($arquivo); // acertou: zera o historico do IP
-echo json_encode([
-    'token'  => gerarToken($perfil),
-    'perfil' => $perfil,
+echo json_encode(array_merge([
+    'token'  => gerarToken($autenticado['perfil']),
+    'perfil' => $autenticado['perfil'],
     'expira' => time() + DURACAO_SESSAO,
-]);
+], isset($autenticado['professorId']) ? [
+    'professorId'   => $autenticado['professorId'],
+    'professorNome' => $autenticado['professorNome'],
+] : []));
